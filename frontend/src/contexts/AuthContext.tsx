@@ -159,9 +159,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Preserve error code from backend for detailed error handling
       const errorCode = error.response?.data?.error?.code;
       const errorMessage = error.response?.data?.error?.message || error.message;
+      const errorStatus = error.response?.status;
 
       const authError: any = new Error(errorMessage);
       authError.code = errorCode;
+      authError.status = errorStatus;
 
       throw authError;
     }

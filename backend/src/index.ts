@@ -6,6 +6,7 @@ import swaggerUi from "swagger-ui-express";
 import swaggerJsdoc from "swagger-jsdoc";
 import path from "path";
 import { createServer } from "http";
+import { DatabaseConnection } from "./database/conexao";
 
 // Rotas (Novo Padrão em Português)
 import transacoesRotas from "./routes/transacoesRotas";
@@ -216,21 +217,33 @@ app.use(errorHandler);
 const httpServer = createServer(app);
 websocketService.initialize(httpServer);
 
-const server = httpServer.listen(PORT, () => {
-  logger.info(`🚀 Server running on http://localhost:${PORT}`, 'Server');
-  logger.info(`📚 API Documentation: http://localhost:${PORT}/api-docs`, 'Server');
-  logger.info(`🏥 Health check: http://localhost:${PORT}/health`, 'Server');
-  logger.info(`🔌 WebSocket enabled`, 'Server');
-  logger.info(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`, 'Server');
-  console.log('✅ Servidor iniciado com sucesso!');
-});
+async function startServer(): Promise<void> {
+  try {
+    console.log('🔎 Validando conexão com banco de dados antes de iniciar a API...');
+    await DatabaseConnection.connect();
 
-server.on('error', (error: any) => {
-  logger.error('Erro ao iniciar servidor HTTP', error, 'Server');
-  console.error(`❌ Erro fatal ao iniciar servidor na porta ${PORT}:`, error);
-  process.exit(1);
-});
+    const server = httpServer.listen(PORT, () => {
+      logger.info(`🚀 Server running on http://localhost:${PORT}`, 'Server');
+      logger.info(`📚 API Documentation: http://localhost:${PORT}/api-docs`, 'Server');
+      logger.info(`🏥 Health check: http://localhost:${PORT}/health`, 'Server');
+      logger.info(`🔌 WebSocket enabled`, 'Server');
+      logger.info(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`, 'Server');
+      console.log('✅ Servidor iniciado com sucesso!');
+    });
+
+    server.on('error', (error: any) => {
+      logger.error('Erro ao iniciar servidor HTTP', error, 'Server');
+      console.error(`❌ Erro fatal ao iniciar servidor na porta ${PORT}:`, error);
+      process.exit(1);
+    });
+  } catch (error) {
+    logger.error('Falha na verificação de conexão com banco na inicialização', error as Error, 'Startup');
+    console.error('❌ Não foi possível conectar ao banco de dados. API não iniciada.');
+    process.exit(1);
+  }
+}
 
 console.log(`⏳ Tentando iniciar servidor na porta ${PORT} (NODE_ENV=${process.env.NODE_ENV})...`);
+startServer();
 
 export default app;

@@ -258,12 +258,17 @@ export default function LoginPage() {
 
       // Display specific error based on error code
       const errorCode = err.code;
+      const errorStatus = err.status;
       let errorMessage = err.message || "Erro ao fazer login";
 
       if (errorCode === "EMAIL_NOT_FOUND") {
         errorMessage = "Email não encontrado. Verifique se o email está correto ou crie uma nova conta.";
       } else if (errorCode === "INVALID_PASSWORD") {
         errorMessage = "Senha incorreta. Verifique sua senha e tente novamente.";
+      } else if (errorCode === "DATABASE_UNAVAILABLE" || errorStatus === 503) {
+        errorMessage = "Serviço de autenticação temporariamente indisponível. Tente novamente em instantes.";
+      } else if (errorStatus >= 500) {
+        errorMessage = "Não foi possível processar o login agora. Tente novamente em alguns instantes.";
       }
 
       setLoginError({ message: errorMessage, code: errorCode });

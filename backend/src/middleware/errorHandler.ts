@@ -102,6 +102,15 @@ function handlePrismaError(error: Error): AppError {
         return new ValidationError('Dados inválidos para operação no banco');
     }
 
+    if (error instanceof Prisma.PrismaClientInitializationError) {
+        return new AppError(
+            'Serviço de autenticação temporariamente indisponível. Tente novamente em instantes.',
+            503,
+            true,
+            'DATABASE_UNAVAILABLE'
+        );
+    }
+
     return new DatabaseError('Erro desconhecido no banco de dados');
 }
 
@@ -127,7 +136,8 @@ export function errorHandler(
     } else if (err instanceof ZodError) {
         error = handleZodError(err);
     } else if (err instanceof Prisma.PrismaClientKnownRequestError ||
-        err instanceof Prisma.PrismaClientValidationError) {
+        err instanceof Prisma.PrismaClientValidationError ||
+        err instanceof Prisma.PrismaClientInitializationError) {
         error = handlePrismaError(err);
     } else {
         // Erro desconhecido
