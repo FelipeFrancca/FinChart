@@ -272,7 +272,7 @@ export const dashboardService = {
     return data.data;
   },
 
-  update: async (id: string, updates: { title?: string; description?: string }) => {
+  update: async (id: string, updates: { title?: string; description?: string; imapConfigurationIds?: string[] }) => {
     const { data } = await api.put(`/dashboards/${id}`, updates);
     return data.data;
   },

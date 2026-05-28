@@ -38,6 +38,7 @@ import PageHeader from '../components/PageHeader';
 import UserAvatar from '../components/UserAvatar';
 import PushNotificationToggle from '../components/PushNotificationToggle';
 import { useNotificationPreferences, useUpdateNotificationPreferences } from '../hooks/api/useNotificationPreferences';
+import ImapConfigManager from '../components/ImapConfigManager';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -261,6 +262,7 @@ export default function ProfilePage() {
           <Tab label="Informações Pessoais" />
           <Tab label="Notificações" />
           <Tab label="Segurança" />
+          <Tab label="Automações / IMAP" />
         </Tabs>
 
         {/* Personal Info Tab */}
@@ -618,6 +620,13 @@ export default function ProfilePage() {
                 </Alert>
               )}
             </Card>
+          </Box>
+        </TabPanel>
+
+        {/* Automations Tab */}
+        <TabPanel value={tabValue} index={3}>
+          <Box sx={{ px: 3 }}>
+            <ImapConfigManager />
           </Box>
         </TabPanel>
 

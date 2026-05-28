@@ -44,6 +44,7 @@ model User {
   NotificationPreferences NotificationPreferences?
   PushSubscriptions       PushSubscription[]
   budgetAllocationProfiles BudgetAllocationProfile[]
+  imapConfigurations      ImapConfiguration[]
 
   @@index([email])
   @@index([googleId])
@@ -157,6 +158,7 @@ model Dashboard {
   alerts      Alert[]
   accounts    Account[]         // Contas vinculadas a este dashboard
   budgetAllocationProfiles BudgetAllocationProfile[] // Perfis de alocação vinculados
+  imapConfigurations  ImapConfiguration[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -668,4 +670,35 @@ model BudgetAllocation {
 
   @@index([profileId])
   @@map("budget_allocations")
+}
+
+// ============================================
+// IMAP CONFIGURATION MODEL - Configurações IMAP por Dashboard
+// ============================================
+
+model ImapConfiguration {
+  id                String  @id @default(cuid())
+
+  // Conexão IMAP
+  host              String  @default("imap.gmail.com")
+  port              Int     @default(993)
+  emailUser         String  // Email/usuário da conta IMAP
+  encryptedPassword String  // IV:AuthTag:CipherText (AES-256-GCM)
+
+  // Controle
+  isActive          Boolean @default(true)
+
+  // Relacionamento com User
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Relacionamento M:N com Dashboard (tabela join implícita do Prisma)
+  dashboards        Dashboard[]
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([userId])
+  @@map("imap_configurations")
 }

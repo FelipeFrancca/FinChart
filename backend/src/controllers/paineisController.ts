@@ -51,8 +51,8 @@ export const criarDashboard = async (req: AuthRequest, res: Response) => {
 };
 
 export const atualizarDashboard = async (req: AuthRequest, res: Response) => {
-    const { title, description } = req.body;
-    const dashboard = await paineisServico.updateDashboard(req.user!.userId, req.params.id, { title, description });
+    const { title, description, imapConfigurationIds } = req.body;
+    const dashboard = await paineisServico.updateDashboard(req.user!.userId, req.params.id, { title, description, imapConfigurationIds });
     res.json({ success: true, data: dashboard });
 };
 

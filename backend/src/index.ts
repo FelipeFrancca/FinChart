@@ -26,6 +26,7 @@ import pushNotificationRotas from "./routes/pushNotificationRotas";
 import analysisRoutes from "./routes/analysisRoutes";
 import reportsRotas from "./routes/reportsRotas";
 import budgetAllocationRotas from "./routes/budgetAllocationRotas";
+import imapConfigRotas from "./routes/imapConfigRotas";
 
 // Middlewares e Utils
 import { logger } from "./utils/logger";
@@ -41,6 +42,9 @@ import { auditMiddleware } from "./middleware/audit";
 
 // WebSocket
 import { websocketService } from "./services/websocketServico";
+
+// IMAP Email Worker
+import { bootAllActiveListeners, stopAllListeners } from "./services/imapListenerService";
 
 // Force restart
 const app: Application = express();
@@ -143,6 +147,7 @@ app.use("/api/push", pushNotificationRotas);
 app.use("/api/analysis", analysisRoutes);
 app.use("/api/reports", reportsRotas);
 app.use("/api/allocations", budgetAllocationRotas);
+app.use("/api/imap-config", imapConfigRotas);
 
 // Health check
 app.get("/health", async (_req, res) => {
@@ -219,6 +224,15 @@ websocketService.initialize(httpServer);
 
 async function startServer(): Promise<void> {
   try {
+    // ── Validar chave de criptografia ──
+    const encKey = process.env.APP_ENCRYPTION_KEY;
+    if (!encKey || encKey.length !== 64) {
+      console.error('❌ ERRO CRÍTICO: APP_ENCRYPTION_KEY não está configurada ou é inválida.');
+      console.error('Ela deve ter exatamente 32 bytes (64 caracteres hexadecimais).');
+      console.error('Para gerar uma nova, rode: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
+      process.exit(1);
+    }
+
     console.log('🔎 Validando conexão com banco de dados antes de iniciar a API...');
     await DatabaseConnection.connect();
 
@@ -229,7 +243,23 @@ async function startServer(): Promise<void> {
       logger.info(`🔌 WebSocket enabled`, 'Server');
       logger.info(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`, 'Server');
       console.log('✅ Servidor iniciado com sucesso!');
+
+      // ── Inicializar IMAP Email Worker (lê configurações do banco) ──
+      bootAllActiveListeners();
     });
+
+    // ── Graceful Shutdown ──
+    const gracefulShutdown = async (signal: string) => {
+      logger.info(`Recebido ${signal}. Encerrando gracefully...`, 'Server');
+      await stopAllListeners();
+      server.close(() => {
+        logger.info('Servidor HTTP encerrado', 'Server');
+        process.exit(0);
+      });
+    };
+
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
     server.on('error', (error: any) => {
       logger.error('Erro ao iniciar servidor HTTP', error, 'Server');
@@ -247,3 +277,4 @@ console.log(`⏳ Tentando iniciar servidor na porta ${PORT} (NODE_ENV=${process.
 startServer();
 
 export default app;
+

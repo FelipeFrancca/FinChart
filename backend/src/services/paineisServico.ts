@@ -169,7 +169,8 @@ export async function listDashboards(userId: string) {
       owner: { select: { id: true, name: true, email: true, avatar: true } },
       members: {
         include: { user: { select: { id: true, name: true, email: true, avatar: true } } }
-      }
+      },
+      imapConfigurations: { select: { id: true, emailUser: true } }
     },
     orderBy: { createdAt: 'desc' }
   });
@@ -178,7 +179,7 @@ export async function listDashboards(userId: string) {
   const memberDashboards = await prisma.dashboardMember.findMany({
     where: {
       userId,
-      status: 'APPROVED' // Apenas dashboards onde o usuário está aprovado
+      status: 'APPROVED'
     },
     include: {
       dashboard: {
@@ -186,7 +187,8 @@ export async function listDashboards(userId: string) {
           owner: { select: { id: true, name: true, email: true, avatar: true } },
           members: {
             include: { user: { select: { id: true, name: true, email: true, avatar: true } } }
-          }
+          },
+          imapConfigurations: { select: { id: true, emailUser: true } }
         }
       }
     },
@@ -216,15 +218,25 @@ export async function createDashboard(userId: string, title: string, description
 }
 
 // Atualizar dashboard
-export async function updateDashboard(userId: string, dashboardId: string, updates: { title?: string; description?: string }) {
+export async function updateDashboard(userId: string, dashboardId: string, updates: { title?: string; description?: string; imapConfigurationIds?: string[] }) {
   await checkPermission(userId, dashboardId, ['OWNER']);
+
+  const { imapConfigurationIds, ...scalarUpdates } = updates;
 
   return prisma.dashboard.update({
     where: { id: dashboardId },
-    data: updates,
+    data: {
+      ...scalarUpdates,
+      ...(imapConfigurationIds !== undefined && {
+        imapConfigurations: {
+          set: imapConfigurationIds.map(id => ({ id })),
+        },
+      }),
+    },
     include: {
       owner: { select: { id: true, name: true, email: true, avatar: true } },
-      members: true
+      members: true,
+      imapConfigurations: { select: { id: true, emailUser: true } },
     }
   });
 }
