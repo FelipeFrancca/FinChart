@@ -256,7 +256,7 @@ async function runImapLoop(
 
           client.on('error', (err) => {
             logger.error(`Erro na conexão IMAP para ${accountLabel}`, err, CONTEXT);
-            client.close().catch(() => {});
+            client.close();
             resolve();
           });
         });
