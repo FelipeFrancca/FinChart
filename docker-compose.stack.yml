@@ -1,0 +1,63 @@
+version: "3.8"
+
+services:
+  app:
+    image: ghcr.io/felipefrancca/finchart:latest
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=traefik-swarm"
+        - "traefik.http.routers.finchart.rule=Host(`finchart.elynce.com.br`)"
+        - "traefik.http.routers.finchart.entrypoints=websecure"
+        - "traefik.http.routers.finchart.tls.certresolver=letsencrypt"
+        - "traefik.http.services.finchart.loadbalancer.server.port=5000"
+
+    networks:
+      - traefik-swarm
+      - db_network
+
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      # Database — DATABASE_URL é obrigatória (start.sh + Prisma)
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT:-5432}/${DB_NAME}?schema=public
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      # Auth
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      # Criptografia (o código lê APP_ENCRYPTION_KEY)
+      - APP_ENCRYPTION_KEY=${APP_ENCRYPTION_KEY}
+      # CORS e Frontend
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://finchart.elynce.com.br}
+      - FRONTEND_URL=${FRONTEND_URL:-https://finchart.elynce.com.br}
+      # Email (SMTP)
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_SECURE=${SMTP_SECURE:-false}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - EMAIL_FROM=${EMAIL_FROM}
+      # Push Notifications (VAPID)
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
+      - VAPID_SUBJECT=${VAPID_SUBJECT}
+      # Google OAuth & AI
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL}
+      - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY}
+      - GROQ_AI_API_KEY=${GROQ_AI_API_KEY}
+
+networks:
+  traefik-swarm:
+    external: true
+  db_network:
+    external: true

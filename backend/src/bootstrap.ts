@@ -1,26 +1,11 @@
 import { execSync, spawn } from 'child_process';
 import { lookup } from 'dns/promises';
 import net from 'net';
+import { getDatabaseUrl, parseDatabaseTarget } from './config/database';
 
-type DatabaseTarget = {
-    host: string;
-    port: number;
-    database: string;
-    protocol: string;
-};
-
-function parseDatabaseTarget(databaseUrl: string): DatabaseTarget | null {
-    try {
-        const parsed = new URL(databaseUrl);
-        return {
-            host: parsed.hostname,
-            port: parsed.port ? Number(parsed.port) : 5432,
-            database: parsed.pathname.replace(/^\//, '') || 'unknown',
-            protocol: parsed.protocol.replace(':', ''),
-        };
-    } catch {
-        return null;
-    }
+const resolvedDatabaseUrl = getDatabaseUrl();
+if (resolvedDatabaseUrl && !process.env.DATABASE_URL) {
+    process.env.DATABASE_URL = resolvedDatabaseUrl;
 }
 
 async function isHostResolvable(host: string): Promise<boolean> {
@@ -56,10 +41,16 @@ async function bootstrap() {
     console.log('\n🚀 INICIANDO BOOTSTRAP DO SISTEMA FINANCEIRO...\n');
 
     try {
+        const databaseUrl = getDatabaseUrl();
+        const prismaEnv = {
+            ...process.env,
+            ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
+        };
+
         // 1. Gerar Prisma Client (apenas se necessário)
         console.log('📦 [1/3] Gerando Prisma Client...');
         try {
-            execSync('npx prisma generate', { stdio: 'inherit' });
+            execSync('npx prisma generate', { stdio: 'inherit', env: prismaEnv });
         } catch (error) {
             console.warn('⚠️  Aviso: Prisma Client já pode estar gerado');
         }
@@ -69,14 +60,13 @@ async function bootstrap() {
         // Por padrao, a API nao deve iniciar sem banco disponivel.
         const shouldContinueWithoutDb = process.env.BOOTSTRAP_ALLOW_DB_FAILURE === 'true';
         const verboseBootstrapErrors = process.env.BOOTSTRAP_VERBOSE_ERRORS === 'true';
-        const databaseUrl = process.env.DATABASE_URL ?? '';
-        const databaseTarget = parseDatabaseTarget(databaseUrl);
+        const databaseTarget = parseDatabaseTarget(databaseUrl ?? '');
         const isDockerHostname = databaseTarget?.host === 'postgres_db';
         const isPgAdminHostname = (databaseTarget?.host ?? '').toLowerCase().includes('pgadmin');
 
         try {
             if (!databaseTarget) {
-                throw new Error('DATABASE_URL inválida ou ausente. Não foi possível extrair host/porta do banco.');
+                throw new Error('Configuração de banco inválida ou ausente. Não foi possível extrair host/porta do banco.');
             }
 
             console.log(`   ℹ️  Destino: ${databaseTarget.protocol}://${databaseTarget.host}:${databaseTarget.port}/${databaseTarget.database}`);
@@ -97,18 +87,20 @@ async function bootstrap() {
 
             // Aplica migrations pendentes (tanto em dev quanto prod)
             console.log('   🔄 Aplicando migrations...');
-            execSync('npx prisma migrate deploy', { stdio: 'inherit' });
+            execSync('npx prisma migrate deploy', { stdio: 'inherit', env: prismaEnv });
             console.log('   ✅ Migrations aplicadas com sucesso');
 
             // Verifica se precisa rodar seeds (apenas se não houver usuários)
             // Importação dinâmica para garantir que o client já foi gerado
             const { PrismaClient } = require('@prisma/client');
-            const prisma = new PrismaClient();
+            const prisma = new PrismaClient({
+                datasourceUrl: databaseUrl
+            });
             
             const userCount = await prisma.user.count();
             if (userCount === 0) {
                 console.log('   🌱 Banco vazio detectado. Rodando seeds...');
-                execSync('npx prisma db seed', { stdio: 'inherit' });
+                execSync('npx prisma db seed', { stdio: 'inherit', env: prismaEnv });
                 console.log('   ✅ Seeds executados com sucesso');
             } else {
                 console.log('   ℹ️  Banco já populado. Pulando seeds.');
@@ -126,8 +118,8 @@ async function bootstrap() {
             }
 
             if (isDockerHostname) {
-                console.warn('   💡 Dica: sua DATABASE_URL usa o host "postgres_db" (rede Docker).');
-                console.warn('      - Se estiver rodando local sem Docker, use "localhost" na DATABASE_URL.');
+                console.warn('   💡 Dica: sua configuração de banco usa o host "postgres_db" (rede Docker).');
+                console.warn('      - Se estiver rodando local sem Docker, use "localhost" em DB_HOST ou DATABASE_URL.');
                 console.warn('      - Se estiver com Docker, suba o banco antes do backend.');
                 console.warn('      - Se o banco for remoto de produção, use o hostname/IP público da instância.');
             }

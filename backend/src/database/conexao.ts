@@ -5,6 +5,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
+import { getDatabaseUrl } from '../config/database';
 
 declare global {
     var __prisma: PrismaClient | undefined;
@@ -28,7 +29,7 @@ class DatabaseConnection {
                     ]
                     : [{ emit: 'event', level: 'error' }],
                 // Previne conexão automática durante import - lazy connection
-                datasourceUrl: process.env.DATABASE_URL,
+                    datasourceUrl: getDatabaseUrl() ?? undefined,
             });
 
             // Log queries in development
