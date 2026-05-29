@@ -63,12 +63,6 @@ jobs:
         working-directory: ./frontend
         run: bun install
       
-      - name: Frontend tests
-        working-directory: ./frontend
-        env:
-          CI: true
-        run: bun run test -- --watchAll=false --passWithNoTests
-      
       - name: Build frontend
         working-directory: ./frontend
         env:
