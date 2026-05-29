@@ -26,7 +26,7 @@ services:
 
     networks:
       - traefik_public
-      - db_network
+      - app_network
 
     volumes:
       - finchart_uploads:/app/backend/uploads
@@ -70,8 +70,8 @@ services:
 networks:
   traefik_public:
     external: true
-  db_network:
-    external: true
+  app_network:
+    driver: overlay
 
 volumes:
   finchart_uploads:
