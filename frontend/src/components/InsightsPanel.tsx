@@ -31,6 +31,7 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({ dashboardId }) => 
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState<FinancialSummary | null>(null);
     const [aiInsight, setAiInsight] = useState<string | null>(null);
+    const [generatingAI, setGeneratingAI] = useState(false);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -39,14 +40,6 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({ dashboardId }) => 
                 // Busca resumo algorítmico (rápido)
                 const summary = await analysisService.getSummary(dashboardId);
                 setData(summary);
-
-                try {
-                    // Busca insight IA (pode falhar ou demorar)
-                    const insights = await analysisService.getInsights(dashboardId);
-                    setAiInsight(insights.insights);
-                } catch (e) {
-                    console.warn('AI Insights failed to load', e);
-                }
             } catch (error) {
                 console.error('Failed to fetch analysis data', error);
             } finally {
@@ -58,6 +51,18 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({ dashboardId }) => 
             fetchData();
         }
     }, [dashboardId]);
+
+    const handleGenerateInsights = async () => {
+        try {
+            setGeneratingAI(true);
+            const insights = await analysisService.getInsights(dashboardId);
+            setAiInsight(insights.insights);
+        } catch (e) {
+            console.warn('AI Insights failed to load', e);
+        } finally {
+            setGeneratingAI(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -131,7 +136,7 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({ dashboardId }) => 
                 </Box>
 
                 {/* AI Summary Box */}
-                {aiInsight && (
+                {aiInsight ? (
                     <Box sx={{
                         p: 2,
                         mb: 3,
@@ -143,6 +148,16 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({ dashboardId }) => 
                             "{aiInsight}"
                         </Typography>
                     </Box>
+                ) : (
+                    <Button
+                        variant="outlined"
+                        startIcon={<AIIcon />}
+                        onClick={handleGenerateInsights}
+                        disabled={generatingAI}
+                        sx={{ mb: 3, borderRadius: 2 }}
+                    >
+                        {generatingAI ? 'Analisando...' : 'Gerar Insights com IA'}
+                    </Button>
                 )}
 
                 {/* Critical Alerts */}
@@ -175,7 +190,7 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({ dashboardId }) => 
                     variant="contained"
                     endIcon={<ArrowForward />}
                     fullWidth
-                    onClick={() => navigate('/analise')}
+                    onClick={() => navigate(`/dashboard/${dashboardId}/analise`)}
                     sx={{
                         mt: 2,
                         background: theme.palette.gradients.primary

@@ -5,6 +5,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { financialAnalysisService } from '../services/analysisServico';
 import { aiRouter } from '../services/aiRouterServico';
+import { aiCache } from '../services/aiCacheServico';
 import { cronService } from '../services/cronServico';
 import { logger } from '../utils/logger';
 
@@ -65,12 +66,30 @@ export async function getInsights(req: Request, res: Response, next: NextFunctio
             ? new Date(req.query.startDate as string)
             : new Date(endDate.getFullYear(), endDate.getMonth(), 1);
 
+        // Verificar cache primeiro
+        const cacheKey = `${startDate.toISOString()}_${endDate.toISOString()}`;
+        const cached = aiCache.get(dashboardId, 'insights', cacheKey);
+        if (cached) {
+            return res.json({
+                success: true,
+                data: {
+                    insights: cached,
+                    generatedAt: new Date().toISOString(),
+                    period: { start: startDate.toISOString(), end: endDate.toISOString() },
+                    fromCache: true,
+                },
+            });
+        }
+
         const insights = await financialAnalysisService.getAIInsights(
             dashboardId,
             userId,
             startDate,
             endDate
         );
+
+        // Salvar no cache (30 min)
+        aiCache.set(dashboardId, 'insights', insights, cacheKey);
 
         res.json({
             success: true,
@@ -210,12 +229,27 @@ export async function getAudit(req: Request, res: Response, next: NextFunction) 
             ? new Date(req.query.startDate as string)
             : new Date(endDate.getFullYear(), endDate.getMonth(), 1);
 
+        // Verificar cache primeiro (TTL 60 min)
+        const cacheKey = `${startDate.toISOString()}_${endDate.toISOString()}`;
+        const cached = aiCache.get(dashboardId, 'audit', cacheKey);
+        if (cached) {
+            return res.json({
+                success: true,
+                data: { auditText: cached, fromCache: true },
+            });
+        }
+
         const audit = await financialAnalysisService.generateFullAudit(
             dashboardId,
             userId,
             startDate,
             endDate
         );
+
+        // Salvar no cache (60 min)
+        if (audit.auditText) {
+            aiCache.set(dashboardId, 'audit', audit.auditText, cacheKey);
+        }
 
         res.json({ success: true, data: audit });
     } catch (error) {

@@ -285,21 +285,25 @@ class CronService {
                     weekEnd
                 );
 
-                // Gerar texto com IA
-                const aiSummary = await aiRouter.generateWeeklySummary({
-                    userName: user.name || 'Usuário',
-                    weekNumber,
-                    totalSpent: summary.totalExpenses,
-                    topCategories: summary.categoryBreakdown.slice(0, 5).map(c => ({
-                        name: c.category,
-                        amount: c.amount,
-                    })),
-                    unusualTransactions: summary.unusualTransactions.slice(0, 3).map(t => ({
-                        description: t.description,
-                        amount: t.amount,
-                    })),
-                    budgetAlerts: [], // TODO: integrar com orçamentos
-                });
+                // Pular IA se não houver atividade para economizar tokens
+                let aiSummary = "Você não teve movimentações nesta semana. Mantenha o foco nas suas metas!";
+                if (summary.totalExpenses > 0 || summary.totalIncome > 0) {
+                    // Gerar texto com IA apenas se houve atividade
+                    aiSummary = await aiRouter.generateWeeklySummary({
+                        userName: user.name || 'Usuário',
+                        weekNumber,
+                        totalSpent: summary.totalExpenses,
+                        topCategories: summary.categoryBreakdown.slice(0, 5).map(c => ({
+                            name: c.category,
+                            amount: c.amount,
+                        })),
+                        unusualTransactions: summary.unusualTransactions.slice(0, 3).map(t => ({
+                            description: t.description,
+                            amount: t.amount,
+                        })),
+                        budgetAlerts: [], // TODO: integrar com orçamentos
+                    });
+                }
 
                 // Criar alerta no sistema
                 await createAlert(membership.dashboardId, user.id, {
@@ -318,7 +322,7 @@ class CronService {
                 if (user.email) {
                     await emailServico.enviarResumoSemanal?.({
                         email: user.email,
-                        nome: user.name,
+                        nome: user.name || 'Usuário',
                         semana: weekNumber,
                         totalGastos: summary.totalExpenses,
                         totalReceitas: summary.totalIncome,
@@ -367,13 +371,16 @@ class CronService {
                     monthEnd
                 );
 
-                // Gerar análise com IA
-                const aiAnalysis = await financialAnalysisService.getAIInsights(
-                    membership.dashboardId,
-                    user.id,
-                    monthStart,
-                    monthEnd
-                );
+                // Gerar análise com IA apenas se houver atividade
+                let aiAnalysis = "Você não teve movimentações neste mês. Registre suas finanças para manter o controle!";
+                if (summary.totalExpenses > 0 || summary.totalIncome > 0) {
+                    aiAnalysis = await financialAnalysisService.getAIInsights(
+                        membership.dashboardId,
+                        user.id,
+                        monthStart,
+                        monthEnd
+                    );
+                }
 
                 // Criar alerta
                 await createAlert(membership.dashboardId, user.id, {

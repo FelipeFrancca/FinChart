@@ -3,6 +3,7 @@ import * as transacoesServico from '../services/transacoesServico';
 import { generateCSV, generateXLSX } from '../services/exportService';
 import { AuthRequest } from '../middleware/auth';
 import { websocketService, WS_EVENTS } from '../services/websocketServico';
+import { aiCache } from '../services/aiCacheServico';
 
 export const criarTransacao = async (req: AuthRequest, res: Response) => {
     const { dashboardId } = req.body;
@@ -17,6 +18,7 @@ export const criarTransacao = async (req: AuthRequest, res: Response) => {
         userId: req.user!.userId,
     });
     
+    aiCache.invalidate(dashboardId); // Invalidar cache de IA
     res.status(201).json({ success: true, data: transacao });
 };
 
@@ -42,6 +44,7 @@ export const criarTransacoesEmLote = async (req: AuthRequest, res: Response) => 
         userId: req.user!.userId,
     });
     
+    aiCache.invalidate(dashboardId); // Invalidar cache de IA
     res.status(201).json({ success: true, data: { count: transacoes.length, transactions: transacoes } });
 };
 
@@ -76,6 +79,7 @@ export const atualizarTransacao = async (req: AuthRequest, res: Response) => {
         userId: req.user!.userId,
     });
     
+    aiCache.invalidate(dashboardId); // Invalidar cache de IA
     res.json({ success: true, data: transacao });
 };
 
@@ -92,6 +96,7 @@ export const deletarTransacao = async (req: AuthRequest, res: Response) => {
         userId: req.user!.userId,
     });
     
+    aiCache.invalidate(dashboardId); // Invalidar cache de IA
     res.status(204).send();
 };
 
@@ -143,6 +148,7 @@ export const atualizarGrupoParcelas = async (req: AuthRequest, res: Response) =>
         updateScope as 'all' | 'remaining' | 'single'
     );
 
+    aiCache.invalidate(dashboardId); // Invalidar cache de IA
     res.json({ success: true, data: result });
 };
 
@@ -163,6 +169,7 @@ export const deletarTransacoesEmLote = async (req: AuthRequest, res: Response) =
         includeInstallments
     );
 
+    aiCache.invalidate(dashboardId); // Invalidar cache de IA
     res.json({ success: true, data: result });
 };
 

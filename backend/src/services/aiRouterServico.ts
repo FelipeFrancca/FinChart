@@ -91,10 +91,18 @@ export class AIRouterService {
         logger.info(`Executando tarefa '${taskType}' via ${provider}`, 'AIRouter');
 
         if (provider === 'groq') {
+            const tokenLimits: Record<TaskType, number> = {
+                image_extraction: 1024,
+                pdf_extraction: 1024,
+                text_summary: 512,
+                financial_analysis: 1500,
+                recommendations: 1024,
+                general_chat: 1024
+            };
             return groqConfig.chat([
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt },
-            ]);
+            ], { maxTokens: tokenLimits[taskType] });
         }
 
         // Fallback para Gemini
@@ -254,19 +262,19 @@ Use emojis estrategicamente para tornar a leitura mais clara (✅ ⚠️ 🚨 �
 - Nº de Transações: ${context.transactionCount}
 
 ## GASTOS POR CATEGORIA
-${context.categoryBreakdown.slice(0, 15).map((c: any) => `- ${c.category}: R$ ${c.amount.toFixed(2)} (${c.percentage.toFixed(1)}% | ${c.transactionCount} transações)`).join('\n')}
+${context.categoryBreakdown.slice(0, 8).map((c: any) => `- ${c.category}: R$ ${c.amount.toFixed(2)} (${c.percentage.toFixed(1)}%)`).join('\n')}
 
 ## CONTAS BANCÁRIAS
-${context.accounts.length > 0 ? context.accounts.map((a: any) => `- ${a.name} (${a.type}${a.institution ? ' - ' + a.institution : ''}): R$ ${a.currentBalance.toFixed(2)}`).join('\n') : 'Nenhuma conta cadastrada'}
+${context.accounts.length > 0 ? context.accounts.map((a: any) => `- ${a.name}: R$ ${a.currentBalance.toFixed(2)}`).join('\n') : 'Nenhuma conta'}
 
 ## METAS FINANCEIRAS
-${context.goals.length > 0 ? context.goals.map((g: any) => `- ${g.name}: R$ ${g.currentAmount.toFixed(2)} / R$ ${g.targetAmount.toFixed(2)} (${g.progress.toFixed(0)}%)${g.deadline ? ' | Prazo: ' + new Date(g.deadline).toLocaleDateString('pt-BR') : ''}`).join('\n') : 'Nenhuma meta cadastrada'}
+${context.goals.length > 0 ? context.goals.map((g: any) => `- ${g.name}: R$ ${g.currentAmount.toFixed(2)}/${g.targetAmount.toFixed(2)} (${g.progress.toFixed(0)}%)`).join('\n') : 'Nenhuma meta'}
 
 ## ORÇAMENTOS
-${context.budgets.length > 0 ? context.budgets.map((b: any) => `- ${b.name}${b.category ? ' (' + b.category + ')' : ''}: R$ ${b.spent.toFixed(2)} / R$ ${b.limit.toFixed(2)} (${b.percentage.toFixed(0)}%) [${b.status.toUpperCase()}]`).join('\n') : 'Nenhum orçamento definido'}
+${context.budgets.length > 0 ? context.budgets.map((b: any) => `- ${b.name}: R$ ${b.spent.toFixed(2)}/${b.limit.toFixed(2)} [${b.status.toUpperCase()}]`).join('\n') : 'Nenhum orçamento'}
 
-## TRANSAÇÕES RECORRENTES ATIVAS
-${context.recurrences.length > 0 ? context.recurrences.map((r: any) => `- ${r.description}: R$ ${r.amount.toFixed(2)} (${r.entryType} | ${r.frequency})`).join('\n') : 'Nenhuma recorrência cadastrada'}
+## RECORRÊNCIAS
+${context.recurrences.length > 0 ? context.recurrences.slice(0, 8).map((r: any) => `- ${r.description}: R$ ${r.amount.toFixed(2)}`).join('\n') : 'Nenhuma recorrência'}
 
 ## ⚠️ RECORRÊNCIAS NÃO LANÇADAS NESTE MÊS
 ${context.missingRecurrences.length > 0 ? context.missingRecurrences.map((m: any) => `- ${m.description}: R$ ${m.amount.toFixed(2)} (${m.category}) — esperado dia ${m.expectedDay}${m.isPastDue ? ' 🚨 ATRASADO ' + m.daysOverdue + ' dias' : ''}`).join('\n') : 'Todas as recorrências foram lançadas ✅'}
@@ -302,24 +310,16 @@ Você tem acesso COMPLETO aos dados financeiros do usuário. Use-os para respond
 Seja direto, prático e acionável. Responda em português brasileiro.
 Use dados reais (valores, datas, nomes) nas respostas quando relevante.
 
-## CONTEXTO FINANCEIRO ATUAL DO USUÁRIO:
-
-**Período:** ${new Date(context.period.start).toLocaleDateString('pt-BR')} a ${new Date(context.period.end).toLocaleDateString('pt-BR')}
-**Receita:** R$ ${context.totalIncome.toFixed(2)} | **Despesas:** R$ ${context.totalExpenses.toFixed(2)} | **Saldo:** R$ ${context.balance.toFixed(2)}
-**Taxa de Poupança:** ${context.savingsRate.toFixed(1)}%
-
-**Gastos por Categoria:**
-${context.categoryBreakdown.slice(0, 10).map((c: any) => `- ${c.category}: R$ ${c.amount.toFixed(2)} (${c.percentage.toFixed(1)}%)`).join('\n')}
-
-**Contas:** ${context.accounts.map((a: any) => `${a.name}: R$ ${a.currentBalance.toFixed(2)}`).join(' | ') || 'Nenhuma'}
-
-**Metas Ativas:** ${context.goals.map((g: any) => `${g.name}: ${g.progress.toFixed(0)}% (R$ ${g.currentAmount.toFixed(2)}/${g.targetAmount.toFixed(2)})`).join(' | ') || 'Nenhuma'}
-
-**Orçamentos:** ${context.budgets.map((b: any) => `${b.name}: ${b.percentage.toFixed(0)}% usado (${b.status})`).join(' | ') || 'Nenhum'}
-
-**Recorrências Pendentes Neste Mês:** ${context.missingRecurrences.length > 0 ? context.missingRecurrences.map((m: any) => `${m.description} R$ ${m.amount.toFixed(2)} (dia ${m.expectedDay}${m.isPastDue ? ' - ATRASADO' : ''})`).join(', ') : 'Nenhuma pendente'}
-
-**Alocações:** ${context.allocations.map((a: any) => `${a.name}: ${a.percentage}%`).join(' | ') || 'Sem perfil'}
+## CONTEXTO COMPACTO:
+Período: ${new Date(context.period.start).toLocaleDateString('pt-BR')} a ${new Date(context.period.end).toLocaleDateString('pt-BR')}
+Valores: Rec:R$${context.totalIncome.toFixed(0)}|Desp:R$${context.totalExpenses.toFixed(0)}|Saldo:R$${context.balance.toFixed(0)}
+Poupança: ${context.savingsRate.toFixed(1)}%
+GastosTop5: ${context.categoryBreakdown.slice(0, 5).map((c: any) => `${c.category}:R$${c.amount.toFixed(0)}`).join('|')}
+Contas: ${context.accounts.map((a: any) => `${a.name}:R$${a.currentBalance.toFixed(0)}`).join('|') || 'Zero'}
+Metas: ${context.goals.map((g: any) => `${g.name}:${g.progress.toFixed(0)}%`).join('|') || 'Nenhuma'}
+Orçamentos: ${context.budgets.map((b: any) => `${b.name}:${b.percentage.toFixed(0)}%`).join('|') || 'Nenhum'}
+Faltantes: ${context.missingRecurrences.length > 0 ? context.missingRecurrences.map((m: any) => `${m.description}:R$${m.amount.toFixed(0)}`).join(',') : 'Nenhuma'}
+Alocações: ${context.allocations.map((a: any) => `${a.name}:${a.percentage}%`).join('|') || 'Zero'}
 
 REGRAS:
 - Sempre cite valores e nomes reais dos dados do contexto
@@ -335,10 +335,15 @@ REGRAS:
             { role: 'system', content: systemPrompt },
         ];
 
-        // Adicionar histórico (limitar a últimas 10 mensagens para não estourar tokens)
-        const recentHistory = history.slice(-10);
+        // Adicionar histórico compacto (limitar a últimas 6 mensagens)
+        const recentHistory = history.slice(-6);
         for (const msg of recentHistory) {
-            messages.push({ role: msg.role, content: msg.content });
+            // Truncar mensagens do assistente muito longas para economizar tokens
+            let content = msg.content;
+            if (msg.role === 'assistant' && content.length > 400) {
+                content = content.substring(0, 400) + '... [truncado]';
+            }
+            messages.push({ role: msg.role, content });
         }
 
         // Mensagem atual
@@ -347,7 +352,7 @@ REGRAS:
         logger.info(`Chat financeiro via ${provider} (${messages.length} mensagens)`, 'AIRouter');
 
         if (provider === 'groq' && availability.groq) {
-            return groqConfig.chat(messages);
+            return groqConfig.chat(messages, { maxTokens: 1024 });
         }
 
         // Fallback para Gemini (sem suporte nativo a roles, concat tudo)

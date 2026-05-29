@@ -23,6 +23,7 @@ import {
 import {
     Refresh,
     AutoAwesome,
+    AutoAwesome as AIIcon,
     Send,
     Warning,
     CheckCircle,
@@ -35,7 +36,6 @@ import {
     Add,
     ExpandMore,
     ExpandLess,
-    Assessment,
     Chat as ChatIcon,
     EventRepeat,
 } from '@mui/icons-material';
@@ -451,12 +451,8 @@ export const AnalysisPage: React.FC = () => {
         fetchData();
     }, [fetchData]);
 
-    // Auto-generate audit on first load
-    useEffect(() => {
-        if (!summaryLoading && dashboardId && !audit && !auditLoading) {
-            fetchAudit();
-        }
-    }, [summaryLoading, dashboardId]);
+    // O useEffect que autogerava a auditoria foi removido para economizar tokens.
+    // O usuário agora precisa clicar no botão "Gerar Auditoria com IA" para rodar a análise.
 
     const handleCreateTransaction = (item: MissingRecurrence) => {
         // Navigate to transactions page with pre-filled data in query params
@@ -481,13 +477,27 @@ export const AnalysisPage: React.FC = () => {
                 title="Auditoria Financeira Inteligente"
                 subtitle="Análise completa das suas finanças com IA — metas, orçamentos, recorrências e recomendações"
                 action={
-                    <Button
-                        startIcon={<Refresh />}
-                        onClick={() => { fetchData(); fetchAudit(); }}
-                        variant="outlined"
-                    >
-                        Atualizar
-                    </Button>
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                        <Button
+                            startIcon={<Refresh />}
+                            onClick={() => { fetchData(); }}
+                            variant="outlined"
+                        >
+                            Atualizar Dados
+                        </Button>
+                        <Button
+                            startIcon={<AIIcon />}
+                            onClick={fetchAudit}
+                            disabled={auditLoading}
+                            variant="contained"
+                            sx={{
+                                background: theme.palette.gradients.primary,
+                                color: '#fff'
+                            }}
+                        >
+                            {auditLoading ? 'Analisando...' : 'Gerar Auditoria com IA'}
+                        </Button>
+                    </Box>
                 }
             />
 
@@ -555,32 +565,30 @@ export const AnalysisPage: React.FC = () => {
 
                 {/* Auditoria IA */}
                 <Grid item xs={12} lg={7}>
-                    <Paper
-                        elevation={0}
-                        sx={{
-                            p: 3,
-                            borderRadius: 3,
-                            border: `1px solid ${alpha(theme.palette.primary.main, 0.15)}`,
+                    <Paper sx={{
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        borderRadius: 3,
+                        border: `1px solid ${theme.palette.divider}`,
+                        overflow: 'hidden',
+                        position: 'relative'
+                    }}>
+                        {/* Gradient Header */}
+                        <Box sx={{
+                            p: 2,
                             background: theme.palette.mode === 'dark'
-                                ? 'linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(124, 58, 237, 0.02) 100%)'
-                                : 'linear-gradient(135deg, #faf5ff 0%, #ffffff 100%)',
-                            minHeight: 400,
-                        }}
-                    >
-                        <Box display="flex" alignItems="center" gap={1} mb={2}>
-                            <Assessment color="primary" />
-                            <Typography variant="h6" fontWeight="bold" color="primary.main">
-                                Relatório de Auditoria
+                                ? 'linear-gradient(135deg, rgba(124, 58, 237, 0.2) 0%, rgba(30, 41, 59, 0) 100%)'
+                                : 'linear-gradient(135deg, rgba(124, 58, 237, 0.1) 0%, rgba(248, 250, 252, 0) 100%)',
+                            borderBottom: `1px solid ${theme.palette.divider}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1
+                        }}>
+                            <AIIcon color="primary" />
+                            <Typography variant="h6" fontWeight="600">
+                                Auditoria e Recomendações
                             </Typography>
-                            <Button
-                                size="small"
-                                startIcon={<Refresh />}
-                                onClick={fetchAudit}
-                                disabled={auditLoading}
-                                sx={{ ml: 'auto' }}
-                            >
-                                Regerar
-                            </Button>
                         </Box>
 
                         {auditLoading ? (
@@ -614,16 +622,17 @@ export const AnalysisPage: React.FC = () => {
                                 <ReactMarkdown>{audit.auditText}</ReactMarkdown>
                             </Box>
                         ) : (
-                            <Box textAlign="center" py={4}>
+                            <Box textAlign="center" py={4} px={2}>
+                                <AIIcon sx={{ fontSize: 48, color: 'text.secondary', opacity: 0.5, mb: 2 }} />
                                 <Typography color="text.secondary" mb={2}>
-                                    Não foi possível gerar a auditoria. Verifique se as chaves de IA estão configuradas.
+                                    Auditoria não gerada. Para economizar recursos, a auditoria financeira avançada com IA agora é gerada sob demanda.
                                 </Typography>
                                 <Button
                                     variant="contained"
-                                    startIcon={<AutoAwesome />}
+                                    startIcon={<AIIcon />}
                                     onClick={fetchAudit}
                                 >
-                                    Tentar Novamente
+                                    Gerar Auditoria com IA
                                 </Button>
                             </Box>
                         )}
