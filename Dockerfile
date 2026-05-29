@@ -1,4 +1,4 @@
-﻿# =============================================================================
+# =============================================================================
 # Multi-stage Dockerfile para Finanças 360° - Node.js Edition
 # Backend: Node 20 + Express + TypeScript + Prisma
 # Frontend: Node 20 + React + TypeScript + Vite
@@ -39,7 +39,7 @@ COPY backend/ ./
 RUN npx prisma generate
 
 # Instalar TypeScript global e rodar build com a config criada
-RUN npm install -g typescript
+RUN npm install -g typescript@5.x
 COPY backend/tsconfig.build.json ./
 RUN tsc -p tsconfig.build.json
 
