@@ -164,8 +164,13 @@ export const testConnection = async (req: AuthRequest, res: Response) => {
     } catch (error: any) {
         logger.warn(`❌ Teste de conexão IMAP falhou para ${testUser}: ${error.message}`, 'IMAPTest');
 
-        // Tentar fechar graciosamente
-        try { client.close(); } catch (_) { /* ignore */ }
+        // Tentar fechar graciosamente (trata promessa implícita que tipagem acusa como void)
+        try {
+            const closeResult = client.close() as any;
+            if (closeResult && typeof closeResult.catch === 'function') {
+                closeResult.catch(() => {});
+            }
+        } catch (_) { /* ignore */ }
 
         const friendlyMessage =
             error.message?.includes('Invalid credentials')

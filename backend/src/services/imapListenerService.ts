@@ -256,7 +256,10 @@ async function runImapLoop(
 
           client.on('error', (err) => {
             logger.error(`Erro na conexão IMAP para ${accountLabel}`, err, CONTEXT);
-            client.close();
+            const closeResult = client.close() as any;
+            if (closeResult && typeof closeResult.catch === 'function') {
+                closeResult.catch(() => {});
+            }
             resolve();
           });
         });
@@ -367,7 +370,10 @@ export async function stopListenerForConfig(configId: string): Promise<void> {
       await client.logout();
     } catch (error) {
       logger.warn(`Erro ao fazer logout IMAP para [configId=${configId}], forçando fechamento`, CONTEXT);
-      client.close();
+      const closeResult = client.close() as any;
+      if (closeResult && typeof closeResult.catch === 'function') {
+        closeResult.catch(() => {});
+      }
     } finally {
       activeConnections.delete(configId);
     }
@@ -418,7 +424,10 @@ export async function stopAllListeners(): Promise<void> {
     try {
       await client.logout();
     } catch (error) {
-      client.close();
+      const closeResult = client.close() as any;
+      if (closeResult && typeof closeResult.catch === 'function') {
+        closeResult.catch(() => {});
+      }
     }
   });
 
