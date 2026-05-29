@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   Box,
   Container,
@@ -10,8 +10,8 @@ import {
   CircularProgress,
   alpha,
 } from '@mui/material';
-import { useParams } from 'react-router-dom';
-import type { Transaction, TransactionFilters } from '../types';
+import { useParams, useSearchParams } from 'react-router-dom';
+import type { Transaction, TransactionFilters, Account } from '../types';
 import MetricsCards from '../components/MetricsCards';
 import FiltersCard from '../components/FiltersCard';
 import ChartsSection from '../components/ChartsSection';
@@ -35,10 +35,14 @@ import {
   useDeleteManyTransactions,
   useRefreshTransactions,
 } from '../hooks/api/useTransactions';
+import { useCategories } from '../hooks/api/useCategories';
+import { useAccounts } from '../hooks/api/useAccounts';
+import { useDashboardPermissions } from '../hooks/api/useDashboardPermissions';
 import { useDebouncedFilters } from '../hooks/useDebounce';
 
 export default function DashboardFinancial() {
   const { dashboardId } = useParams<{ dashboardId: string }>();
+  const [searchParams] = useSearchParams();
   const theme = useTheme();
 
   // Inicializar filtros com o mês atual
@@ -63,6 +67,9 @@ export default function DashboardFinancial() {
   // Custom Hooks - use debounced filters for API calls
   const { data: transactions = [], refetch, isLoading, isFetching, error } = useTransactions(debouncedFilters, dashboardId);
   const { data: stats, isFetching: statsFetching } = useTransactionStats(debouncedFilters, dashboardId);
+  const { data: categories = [] } = useCategories(dashboardId || '');
+  const { data: accounts = [] } = useAccounts(dashboardId || '');
+  const { canEdit } = useDashboardPermissions();
   const { refresh: refreshAll } = useRefreshTransactions();
 
   const createTransaction = useCreateTransaction();
@@ -72,8 +79,45 @@ export default function DashboardFinancial() {
   const updateInstallmentGroup = useUpdateInstallmentGroup();
   const deleteManyTransactions = useDeleteManyTransactions();
 
+  // Client-side filtering for instant search
+  const filteredTransactions = useMemo(() => {
+    if (!filters.search?.trim()) return transactions;
+
+    const query = filters.search.toLowerCase().trim();
+    return transactions.filter((t) =>
+      t.description?.toLowerCase().includes(query) ||
+      t.category?.toLowerCase().includes(query) ||
+      t.notes?.toLowerCase().includes(query) ||
+      t.institution?.toLowerCase().includes(query) ||
+      t.thirdPartyName?.toLowerCase().includes(query)
+    );
+  }, [transactions, filters.search]);
+
   // Check if data is being updated
   const isUpdating = isFetching || statsFetching || isFiltersPending;
+
+  // Handle prefill from query params (e.g. from AnalysisPage missing recurrences)
+  useEffect(() => {
+    if (searchParams.get('prefill') === 'true') {
+      const prefillData: Partial<Transaction> = {};
+      const description = searchParams.get('description');
+      const amount = searchParams.get('amount');
+      const category = searchParams.get('category');
+      const entryType = searchParams.get('entryType');
+      const flowType = searchParams.get('flowType');
+      const subcategory = searchParams.get('subcategory');
+
+      if (description) prefillData.description = description;
+      if (amount) prefillData.amount = parseFloat(amount);
+      if (category) prefillData.category = category;
+      if (entryType) prefillData.entryType = entryType as any;
+      if (flowType) prefillData.flowType = flowType as any;
+      if (subcategory) prefillData.subcategory = subcategory;
+
+      setSelectedTransaction(prefillData as Transaction);
+      setShowTransactionForm(true);
+    }
+  }, [searchParams]);
 
   // Handle manual refresh
   const handleRefresh = useCallback(() => {
@@ -152,7 +196,7 @@ export default function DashboardFinancial() {
       // Ensure dashboardId is included
       const transactionData = { ...data, dashboardId };
 
-      if (selectedTransaction) {
+      if (selectedTransaction?.id) {
         // Check if this is an installment transaction with group and scope is not 'single'
         const groupId = selectedTransaction.installmentGroupId;
         if (groupId && scope && scope !== 'single' && dashboardId) {
@@ -203,7 +247,7 @@ export default function DashboardFinancial() {
       return;
     }
 
-    const transactionsToExport = transactions.filter(t => selectedIds.includes(t.id));
+    const transactionsToExport = filteredTransactions.filter(t => selectedIds.includes(t.id));
 
     if (!transactionsToExport.length) {
       showWarning('Não há transações para exportar.', { title: 'Sem dados' });
@@ -242,7 +286,7 @@ export default function DashboardFinancial() {
     URL.revokeObjectURL(url);
 
     showSuccess(`${selectedIds.length} transações exportadas com sucesso.`, { title: 'Exportado!' });
-  }, [transactions]);
+  }, [filteredTransactions]);
 
   // Export using backend API - CSV
   const handleExportCSV = useCallback(async (selectedIds?: string[]) => {
@@ -384,6 +428,8 @@ export default function DashboardFinancial() {
           { label: 'Dashboards', to: '/dashboards' },
           { label: 'Financeiro' }
         ]}
+        actionLabel={canEdit ? "Nova Transação" : undefined}
+        onAction={canEdit ? handleNewTransaction : undefined}
         extra={
           <Tooltip title="Atualizar dados" arrow>
             <IconButton
@@ -417,7 +463,13 @@ export default function DashboardFinancial() {
 
       {/* Filtros */}
       <Box id="filters-section" sx={{ mb: 4, scrollMarginTop: 80 }}>
-        <FiltersCard filters={filters} onFiltersChange={setFilters} transactions={transactions} />
+        <FiltersCard
+          filters={filters}
+          onFiltersChange={setFilters}
+          transactions={transactions}
+          categories={categories}
+          accounts={accounts as Account[]}
+        />
       </Box>
 
       {/* Insights e Gráficos */}
@@ -431,14 +483,16 @@ export default function DashboardFinancial() {
 
       {/* Tabela */}
       <TransactionsTable
-        transactions={transactions}
+        transactions={filteredTransactions}
         isLoading={isLoading}
+        accounts={accounts as Account[]}
         onEdit={handleEditTransaction}
         onDelete={handleDeleteTransaction}
         onNew={handleNewTransaction}
         onExport={handleExport}
         onExportCSV={handleExportCSV}
         onExportXLSX={handleExportXLSX}
+        canEdit={canEdit}
         onThirdPartyUpdate={handleThirdPartyUpdate}
         selectedIds={selectedTransactionIds}
         onSelectionChange={setSelectedTransactionIds}
@@ -460,4 +514,3 @@ export default function DashboardFinancial() {
     </Container>
   );
 }
-

@@ -391,6 +391,292 @@ export class FinancialAnalysisService {
 
         return results.reverse(); // Mais antigo primeiro
     }
+
+    /**
+     * Coleta contexto financeiro completo do dashboard para alimentar a IA
+     */
+    async getFullDashboardContext(
+        dashboardId: string,
+        userId: string,
+        startDate: Date,
+        endDate: Date
+    ) {
+        // Transações do período
+        const transactions = await prisma.transaction.findMany({
+            where: {
+                dashboardId,
+                date: { gte: startDate, lte: endDate },
+                deletedAt: null,
+            },
+            orderBy: { date: 'desc' },
+        });
+
+        const income = transactions
+            .filter(t => t.entryType === 'Receita')
+            .reduce((sum, t) => sum + t.amount, 0);
+        const expenses = transactions
+            .filter(t => t.entryType === 'Despesa')
+            .reduce((sum, t) => sum + t.amount, 0);
+
+        // Contas
+        const accounts = await prisma.account.findMany({
+            where: { dashboardId, deletedAt: null, status: 'ACTIVE' },
+        });
+
+        // Metas financeiras
+        const goals = await prisma.financialGoal.findMany({
+            where: { userId, deletedAt: null, status: 'ACTIVE' },
+        });
+
+        // Orçamentos ativos
+        const budgets = await prisma.budget.findMany({
+            where: { userId, isActive: true, deletedAt: null },
+        });
+
+        // Recorrências ativas
+        const recurrences = await prisma.recurringTransaction.findMany({
+            where: { dashboardId, isActive: true, deletedAt: null },
+        });
+
+        // Alocações de orçamento
+        let allocations: any[] = [];
+        try {
+            const profile = await prisma.budgetAllocationProfile.findFirst({
+                where: { userId, isDefault: true },
+                include: { allocations: { orderBy: { order: 'asc' } } },
+            });
+            if (profile) allocations = profile.allocations;
+        } catch { /* Ignora se não tiver perfil */ }
+
+        // Detectar recorrências faltantes
+        const missingRecurrences = await this.detectMissingRecurrences(dashboardId);
+
+        // Calcular gastos por categoria
+        const categoryBreakdown = this.calculateCategoryBreakdown(
+            transactions.filter(t => t.entryType === 'Despesa')
+        );
+
+        // Calcular uso dos orçamentos
+        const budgetUsage = budgets.map(b => {
+            const spent = transactions
+                .filter(t => t.entryType === 'Despesa' && (!b.category || t.category === b.category))
+                .reduce((sum, t) => sum + t.amount, 0);
+            return {
+                name: b.name,
+                limit: b.amount,
+                spent,
+                percentage: b.amount > 0 ? (spent / b.amount) * 100 : 0,
+                category: b.category,
+                status: spent > b.amount ? 'estourado' : spent > b.amount * 0.8 ? 'atenção' : 'ok',
+            };
+        });
+
+        return {
+            period: { start: startDate, end: endDate },
+            totalIncome: income,
+            totalExpenses: expenses,
+            balance: income - expenses,
+            savingsRate: income > 0 ? ((income - expenses) / income) * 100 : 0,
+            transactionCount: transactions.length,
+            categoryBreakdown,
+            accounts: accounts.map(a => ({
+                name: a.name,
+                type: a.type,
+                currentBalance: a.currentBalance,
+                institution: a.institution,
+            })),
+            goals: goals.map(g => ({
+                name: g.name,
+                targetAmount: g.targetAmount,
+                currentAmount: g.currentAmount,
+                progress: g.targetAmount > 0 ? (g.currentAmount / g.targetAmount) * 100 : 0,
+                deadline: g.deadline,
+                status: g.status,
+            })),
+            budgets: budgetUsage,
+            recurrences: recurrences.map(r => ({
+                description: r.description,
+                amount: r.amount,
+                category: r.category,
+                entryType: r.entryType,
+                frequency: r.frequency,
+                nextDate: r.nextDate,
+                lastDate: r.lastDate,
+            })),
+            missingRecurrences,
+            allocations: allocations.map(a => ({
+                name: a.name,
+                percentage: a.percentage,
+                linkedCategories: a.linkedCategories,
+            })),
+        };
+    }
+
+    /**
+     * Detecta recorrências que deveriam ter sido lançadas neste mês mas não foram
+     */
+    async detectMissingRecurrences(dashboardId: string): Promise<MissingRecurrence[]> {
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+        // Buscar recorrências ativas
+        const recurrences = await prisma.recurringTransaction.findMany({
+            where: {
+                dashboardId,
+                isActive: true,
+                deletedAt: null,
+                startDate: { lte: monthEnd },
+            },
+        });
+
+        // Buscar transações do mês
+        const transactions = await prisma.transaction.findMany({
+            where: {
+                dashboardId,
+                date: { gte: monthStart, lte: monthEnd },
+                deletedAt: null,
+            },
+        });
+
+        const missing: MissingRecurrence[] = [];
+
+        for (const rec of recurrences) {
+            // Verifica se deveria ter sido executada neste mês
+            const shouldExecuteThisMonth = this.shouldRecurrenceExecuteInMonth(rec, monthStart, monthEnd);
+            if (!shouldExecuteThisMonth) continue;
+
+            // Verifica se já existe uma transação correspondente
+            const hasMatchingTransaction = transactions.some(t =>
+                t.description.toLowerCase().includes(rec.description.toLowerCase()) &&
+                t.entryType === rec.entryType &&
+                Math.abs(t.amount - rec.amount) < rec.amount * 0.1 // Margem de 10%
+            );
+
+            if (!hasMatchingTransaction) {
+                // Calcular data esperada
+                const expectedDay = rec.nextDate.getDate();
+                const isPastDue = now.getDate() > expectedDay;
+
+                missing.push({
+                    recurrenceId: rec.id,
+                    description: rec.description,
+                    amount: rec.amount,
+                    category: rec.category,
+                    entryType: rec.entryType,
+                    flowType: rec.flowType,
+                    expectedDay,
+                    isPastDue,
+                    daysOverdue: isPastDue ? now.getDate() - expectedDay : 0,
+                    subcategory: rec.subcategory || undefined,
+                    accountId: rec.accountId || undefined,
+                });
+            }
+        }
+
+        // Ordenar por urgência (past due primeiro, depois por dia)
+        return missing.sort((a, b) => {
+            if (a.isPastDue && !b.isPastDue) return -1;
+            if (!a.isPastDue && b.isPastDue) return 1;
+            return a.expectedDay - b.expectedDay;
+        });
+    }
+
+    /**
+     * Verifica se uma recorrência deveria ser executada em um dado mês
+     */
+    private shouldRecurrenceExecuteInMonth(
+        rec: any,
+        monthStart: Date,
+        monthEnd: Date
+    ): boolean {
+        // Se a startDate é depois do fim do mês, não deveria
+        if (rec.startDate > monthEnd) return false;
+        // Se endDate definida e antes do início do mês, não deveria
+        if (rec.endDate && rec.endDate < monthStart) return false;
+
+        // Verificar com base na frequência
+        switch (rec.frequency) {
+            case 'DAILY':
+                return true;
+            case 'WEEKLY':
+            case 'BIWEEKLY':
+                return true; // Semanais sempre têm ocorrência no mês
+            case 'MONTHLY':
+                return true; // Mensais sempre executam todo mês
+            case 'BIMONTHLY': {
+                const startMonth = rec.startDate.getMonth();
+                const currentMonth = monthStart.getMonth();
+                const diff = (currentMonth - startMonth + 12) % 12;
+                return diff % 2 === 0;
+            }
+            case 'QUARTERLY': {
+                const startMonth = rec.startDate.getMonth();
+                const currentMonth = monthStart.getMonth();
+                const diff = (currentMonth - startMonth + 12) % 12;
+                return diff % 3 === 0;
+            }
+            case 'SEMIANNUALLY': {
+                const startMonth = rec.startDate.getMonth();
+                const currentMonth = monthStart.getMonth();
+                const diff = (currentMonth - startMonth + 12) % 12;
+                return diff % 6 === 0;
+            }
+            case 'YEARLY': {
+                return rec.startDate.getMonth() === monthStart.getMonth();
+            }
+            default:
+                return true;
+        }
+    }
+
+    /**
+     * Gera auditoria financeira completa com IA
+     */
+    async generateFullAudit(
+        dashboardId: string,
+        userId: string,
+        startDate: Date,
+        endDate: Date
+    ): Promise<{ auditText: string; context: any }> {
+        const context = await this.getFullDashboardContext(dashboardId, userId, startDate, endDate);
+
+        const auditText = await aiRouter.generateFinancialAudit(context);
+
+        return { auditText, context };
+    }
+
+    /**
+     * Chat interativo com IA usando contexto completo do dashboard
+     */
+    async chatWithAI(
+        dashboardId: string,
+        userId: string,
+        message: string,
+        history: { role: 'user' | 'assistant'; content: string }[]
+    ): Promise<string> {
+        const now = new Date();
+        const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endDate = now;
+
+        const context = await this.getFullDashboardContext(dashboardId, userId, startDate, endDate);
+
+        return aiRouter.generateFinancialChat(context, message, history);
+    }
+}
+
+export interface MissingRecurrence {
+    recurrenceId: string;
+    description: string;
+    amount: number;
+    category: string;
+    entryType: string;
+    flowType: string;
+    expectedDay: number;
+    isPastDue: boolean;
+    daysOverdue: number;
+    subcategory?: string;
+    accountId?: string;
 }
 
 // Exportar instância singleton

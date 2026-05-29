@@ -16,7 +16,7 @@ export class GroqConfig {
 
     // Modelos disponíveis no Groq (em ordem de preferência)
     private readonly models = [
-        'llama-3.1-70b-versatile',  // Melhor qualidade
+        'llama-3.3-70b-versatile',  // Melhor qualidade (substituiu o 3.1)
         'llama-3.1-8b-instant',      // Mais rápido
         'mixtral-8x7b-32768',        // Bom para contexto longo
     ];
@@ -113,8 +113,8 @@ export class GroqConfig {
         } catch (error: any) {
             logger.error(`Erro no Groq chat (modelo: ${model})`, error, 'GroqConfig');
 
-            // Tentar rotacionar modelo se for erro de rate limit
-            if (error.status === 429 || error.status === 503) {
+            // Tentar rotacionar modelo se for erro de rate limit ou modelo desativado
+            if (error.status === 429 || error.status === 503 || error?.error?.error?.code === 'model_decommissioned') {
                 if (this.rotateModel()) {
                     return this.chat(messages, options); // Retry com novo modelo
                 }

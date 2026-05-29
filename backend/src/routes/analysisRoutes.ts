@@ -93,4 +93,37 @@ router.get('/ai-status', analysisController.getAIStatus);
  */
 router.post('/trigger-job', analysisController.triggerJob);
 
+/**
+ * @swagger
+ * /api/analysis/audit/{dashboardId}:
+ *   get:
+ *     summary: Gera auditoria financeira completa com IA
+ *     tags: [Analysis]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get('/audit/:dashboardId', analysisController.getAudit);
+
+/**
+ * @swagger
+ * /api/analysis/missing-recurrences/{dashboardId}:
+ *   get:
+ *     summary: Detecta recorrências não lançadas no período
+ *     tags: [Analysis]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get('/missing-recurrences/:dashboardId', analysisController.getMissingRecurrences);
+
+/**
+ * @swagger
+ * /api/analysis/chat/{dashboardId}:
+ *   post:
+ *     summary: Chat interativo com IA sobre finanças
+ *     tags: [Analysis]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post('/chat/:dashboardId', analysisController.chatWithAI);
+
 export default router;

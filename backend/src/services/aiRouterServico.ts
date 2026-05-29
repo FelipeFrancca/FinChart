@@ -229,6 +229,138 @@ Por favor, forneça:
 
         return this.generateText(systemPrompt, userPrompt, 'financial_analysis');
     }
+
+    /**
+     * Gera auditoria financeira completa com contexto total
+     */
+    public async generateFinancialAudit(context: any): Promise<string> {
+        const systemPrompt = `Você é um auditor financeiro pessoal altamente qualificado, especialista em finanças brasileiras.
+Sua função é realizar uma AUDITORIA COMPLETA e DETALHADA das finanças do usuário.
+Seja extremamente criterioso, analítico e direto. Use dados reais fornecidos para embasar cada observação.
+Responda sempre em português brasileiro com formatação markdown.
+Use emojis estrategicamente para tornar a leitura mais clara (✅ ⚠️ 🚨 📊 💰 🎯 📈 📉).`;
+
+        const periodStr = context.period
+            ? `${new Date(context.period.start).toLocaleDateString('pt-BR')} a ${new Date(context.period.end).toLocaleDateString('pt-BR')}`
+            : 'Mês atual';
+
+        const userPrompt = `Realize uma auditoria financeira completa dos seguintes dados do período ${periodStr}:
+
+## RESUMO FINANCEIRO
+- Receita Total: R$ ${context.totalIncome.toFixed(2)}
+- Despesas Totais: R$ ${context.totalExpenses.toFixed(2)}
+- Saldo: R$ ${context.balance.toFixed(2)}
+- Taxa de Poupança: ${context.savingsRate.toFixed(1)}%
+- Nº de Transações: ${context.transactionCount}
+
+## GASTOS POR CATEGORIA
+${context.categoryBreakdown.slice(0, 15).map((c: any) => `- ${c.category}: R$ ${c.amount.toFixed(2)} (${c.percentage.toFixed(1)}% | ${c.transactionCount} transações)`).join('\n')}
+
+## CONTAS BANCÁRIAS
+${context.accounts.length > 0 ? context.accounts.map((a: any) => `- ${a.name} (${a.type}${a.institution ? ' - ' + a.institution : ''}): R$ ${a.currentBalance.toFixed(2)}`).join('\n') : 'Nenhuma conta cadastrada'}
+
+## METAS FINANCEIRAS
+${context.goals.length > 0 ? context.goals.map((g: any) => `- ${g.name}: R$ ${g.currentAmount.toFixed(2)} / R$ ${g.targetAmount.toFixed(2)} (${g.progress.toFixed(0)}%)${g.deadline ? ' | Prazo: ' + new Date(g.deadline).toLocaleDateString('pt-BR') : ''}`).join('\n') : 'Nenhuma meta cadastrada'}
+
+## ORÇAMENTOS
+${context.budgets.length > 0 ? context.budgets.map((b: any) => `- ${b.name}${b.category ? ' (' + b.category + ')' : ''}: R$ ${b.spent.toFixed(2)} / R$ ${b.limit.toFixed(2)} (${b.percentage.toFixed(0)}%) [${b.status.toUpperCase()}]`).join('\n') : 'Nenhum orçamento definido'}
+
+## TRANSAÇÕES RECORRENTES ATIVAS
+${context.recurrences.length > 0 ? context.recurrences.map((r: any) => `- ${r.description}: R$ ${r.amount.toFixed(2)} (${r.entryType} | ${r.frequency})`).join('\n') : 'Nenhuma recorrência cadastrada'}
+
+## ⚠️ RECORRÊNCIAS NÃO LANÇADAS NESTE MÊS
+${context.missingRecurrences.length > 0 ? context.missingRecurrences.map((m: any) => `- ${m.description}: R$ ${m.amount.toFixed(2)} (${m.category}) — esperado dia ${m.expectedDay}${m.isPastDue ? ' 🚨 ATRASADO ' + m.daysOverdue + ' dias' : ''}`).join('\n') : 'Todas as recorrências foram lançadas ✅'}
+
+## ALOCAÇÕES DE ORÇAMENTO (PLANEJAMENTO)
+${context.allocations.length > 0 ? context.allocations.map((a: any) => `- ${a.name}: ${a.percentage}%${a.linkedCategories?.length > 0 ? ' → Categorias: ' + a.linkedCategories.join(', ') : ''}`).join('\n') : 'Sem perfil de alocação definido'}
+
+---
+
+Com base em TODOS esses dados, gere um relatório de auditoria estruturado com:
+
+1. **📊 Diagnóstico Geral** (3-4 frases sobre a saúde financeira)
+2. **🚨 Alertas Críticos** (itens que precisam atenção imediata: recorrências faltantes, orçamentos estourados, metas em risco)
+3. **📉 Pontos de Atenção** (tendências preocupantes, categorias com gastos elevados, falta de diversificação)
+4. **✅ Pontos Positivos** (o que está indo bem)
+5. **💡 Recomendações Práticas** (5 sugestões concretas e acionáveis para o próximo mês)
+6. **🎯 Análise de Metas** (progresso e viabilidade de cada meta ativa)
+7. **📋 Sugestões de Cadastro** (lançamentos, categorias, contas ou metas que parecem estar faltando para uma gestão mais completa)`;
+
+        return this.generateText(systemPrompt, userPrompt, 'financial_analysis');
+    }
+
+    /**
+     * Chat interativo com contexto financeiro completo
+     */
+    public async generateFinancialChat(
+        context: any,
+        userMessage: string,
+        history: { role: 'user' | 'assistant'; content: string }[]
+    ): Promise<string> {
+        const systemPrompt = `Você é o assistente financeiro pessoal do FinChart, um consultor altamente especializado em finanças brasileiras.
+Você tem acesso COMPLETO aos dados financeiros do usuário. Use-os para responder com precisão.
+Seja direto, prático e acionável. Responda em português brasileiro.
+Use dados reais (valores, datas, nomes) nas respostas quando relevante.
+
+## CONTEXTO FINANCEIRO ATUAL DO USUÁRIO:
+
+**Período:** ${new Date(context.period.start).toLocaleDateString('pt-BR')} a ${new Date(context.period.end).toLocaleDateString('pt-BR')}
+**Receita:** R$ ${context.totalIncome.toFixed(2)} | **Despesas:** R$ ${context.totalExpenses.toFixed(2)} | **Saldo:** R$ ${context.balance.toFixed(2)}
+**Taxa de Poupança:** ${context.savingsRate.toFixed(1)}%
+
+**Gastos por Categoria:**
+${context.categoryBreakdown.slice(0, 10).map((c: any) => `- ${c.category}: R$ ${c.amount.toFixed(2)} (${c.percentage.toFixed(1)}%)`).join('\n')}
+
+**Contas:** ${context.accounts.map((a: any) => `${a.name}: R$ ${a.currentBalance.toFixed(2)}`).join(' | ') || 'Nenhuma'}
+
+**Metas Ativas:** ${context.goals.map((g: any) => `${g.name}: ${g.progress.toFixed(0)}% (R$ ${g.currentAmount.toFixed(2)}/${g.targetAmount.toFixed(2)})`).join(' | ') || 'Nenhuma'}
+
+**Orçamentos:** ${context.budgets.map((b: any) => `${b.name}: ${b.percentage.toFixed(0)}% usado (${b.status})`).join(' | ') || 'Nenhum'}
+
+**Recorrências Pendentes Neste Mês:** ${context.missingRecurrences.length > 0 ? context.missingRecurrences.map((m: any) => `${m.description} R$ ${m.amount.toFixed(2)} (dia ${m.expectedDay}${m.isPastDue ? ' - ATRASADO' : ''})`).join(', ') : 'Nenhuma pendente'}
+
+**Alocações:** ${context.allocations.map((a: any) => `${a.name}: ${a.percentage}%`).join(' | ') || 'Sem perfil'}
+
+REGRAS:
+- Sempre cite valores e nomes reais dos dados do contexto
+- Se não tiver informação suficiente, sugira ao usuário que cadastre os dados necessários
+- Seja proativo em alertar sobre problemas ou oportunidades
+- Formate com markdown e use emojis moderadamente`;
+
+        const provider = this.selectProvider('financial_analysis');
+        const availability = this.getAvailability();
+
+        // Montar mensagens com histórico
+        const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
+            { role: 'system', content: systemPrompt },
+        ];
+
+        // Adicionar histórico (limitar a últimas 10 mensagens para não estourar tokens)
+        const recentHistory = history.slice(-10);
+        for (const msg of recentHistory) {
+            messages.push({ role: msg.role, content: msg.content });
+        }
+
+        // Mensagem atual
+        messages.push({ role: 'user', content: userMessage });
+
+        logger.info(`Chat financeiro via ${provider} (${messages.length} mensagens)`, 'AIRouter');
+
+        if (provider === 'groq' && availability.groq) {
+            return groqConfig.chat(messages);
+        }
+
+        // Fallback para Gemini (sem suporte nativo a roles, concat tudo)
+        const fullPrompt = messages.map(m => {
+            const prefix = m.role === 'system' ? '[Sistema]' : m.role === 'user' ? '[Usuário]' : '[Assistente]';
+            return `${prefix}: ${m.content}`;
+        }).join('\n\n');
+
+        const model = aiConfig.getModel();
+        const result = await model.generateContent(fullPrompt);
+        const response = await result.response;
+        return response.text();
+    }
 }
 
 // Exporta a instância singleton

@@ -26,7 +26,6 @@ const JoinDashboardPage = lazy(() => import('./pages/JoinDashboardPage'));
 const CreateDashboardPage = lazy(() => import('./pages/CreateDashboardPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
-const TransactionsPage = lazy(() => import('./pages/TransactionsPage'));
 const MembersPage = lazy(() => import('./pages/MembersPage'));
 const DashboardSettingsPage = lazy(() => import('./pages/DashboardSettingsPage'));
 const ItemAnalysisPage = lazy(() => import('./pages/ItemAnalysisPage'));
@@ -102,7 +101,6 @@ function App() {
                 <Route path="/dashboard/:dashboardId/alerts" element={<AlertsPage />} />
                 <Route path="/dashboard/:dashboardId/members" element={<MembersPage />} />
                 <Route path="/dashboard/:dashboardId/settings" element={<DashboardSettingsPage />} />
-                <Route path="/dashboard/:dashboardId/transactions" element={<TransactionsPage />} />
                 <Route path="/dashboard/:dashboardId/items" element={<ItemAnalysisPage />} />
                 <Route path="/dashboard/:dashboardId/financial-health" element={<FinancialHealthPage />} />
                 <Route path="/dashboard/:dashboardId/analise" element={<AnalysisPage />} />

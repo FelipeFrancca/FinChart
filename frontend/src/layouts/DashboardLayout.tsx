@@ -43,7 +43,6 @@ import {
     VpnKey,
     Settings,
     Assessment,
-    Receipt,
     People,
     TrendingUp,
     Person,
@@ -120,7 +119,6 @@ export default function DashboardLayout({ mode, onToggleTheme }: DashboardLayout
                 children: [
                     { text: 'Visão Geral', icon: <TrendingUp />, path: `${basePath}` },
                     { text: 'Análise Inteligente', icon: <AutoAwesome />, path: `${basePath}/analise` },
-                    { text: 'Transações', icon: <Receipt />, path: `${basePath}/transactions` },
                     { text: 'Contas', icon: <AccountBalanceWallet />, path: `${basePath}/accounts` },
                     { text: 'Categorias', icon: <Category />, path: `${basePath}/categories` },
                     { text: 'Transferências', icon: <CompareArrows />, path: `${basePath}/transfers` },

@@ -15,7 +15,7 @@ import { logger } from '../utils/logger';
 export async function getSummary(req: Request, res: Response, next: NextFunction) {
     try {
         const { dashboardId } = req.params;
-        const userId = (req as any).user?.id;
+        const userId = (req as any).user?.userId;
 
         if (!userId) {
             return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
@@ -52,7 +52,7 @@ export async function getSummary(req: Request, res: Response, next: NextFunction
 export async function getInsights(req: Request, res: Response, next: NextFunction) {
     try {
         const { dashboardId } = req.params;
-        const userId = (req as any).user?.id;
+        const userId = (req as any).user?.userId;
 
         if (!userId) {
             return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
@@ -184,6 +184,97 @@ export async function triggerJob(req: Request, res: Response, next: NextFunction
         res.json({
             success: true,
             message: `Job ${jobName} executado com sucesso`,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+/**
+ * GET /api/analysis/audit/:dashboardId
+ * Gera auditoria financeira completa com IA
+ */
+export async function getAudit(req: Request, res: Response, next: NextFunction) {
+    try {
+        const { dashboardId } = req.params;
+        const userId = (req as any).user?.userId;
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
+        }
+
+        const endDate = req.query.endDate
+            ? new Date(req.query.endDate as string)
+            : new Date();
+        const startDate = req.query.startDate
+            ? new Date(req.query.startDate as string)
+            : new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+
+        const audit = await financialAnalysisService.generateFullAudit(
+            dashboardId,
+            userId,
+            startDate,
+            endDate
+        );
+
+        res.json({ success: true, data: audit });
+    } catch (error) {
+        next(error);
+    }
+}
+
+/**
+ * GET /api/analysis/missing-recurrences/:dashboardId
+ * Detecta recorrências não lançadas no mês
+ */
+export async function getMissingRecurrences(req: Request, res: Response, next: NextFunction) {
+    try {
+        const { dashboardId } = req.params;
+        const userId = (req as any).user?.userId;
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
+        }
+
+        const missing = await financialAnalysisService.detectMissingRecurrences(dashboardId);
+
+        res.json({ success: true, data: missing });
+    } catch (error) {
+        next(error);
+    }
+}
+
+/**
+ * POST /api/analysis/chat/:dashboardId
+ * Chat interativo com IA (mantém histórico na sessão)
+ */
+export async function chatWithAI(req: Request, res: Response, next: NextFunction) {
+    try {
+        const { dashboardId } = req.params;
+        const userId = (req as any).user?.userId;
+        const { message, history } = req.body;
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
+        }
+
+        if (!message || typeof message !== 'string') {
+            return res.status(400).json({ success: false, error: 'Mensagem é obrigatória' });
+        }
+
+        const response = await financialAnalysisService.chatWithAI(
+            dashboardId,
+            userId,
+            message,
+            history || []
+        );
+
+        res.json({
+            success: true,
+            data: {
+                response,
+                generatedAt: new Date().toISOString(),
+            },
         });
     } catch (error) {
         next(error);
