@@ -22,13 +22,14 @@ export async function getSummary(req: Request, res: Response, next: NextFunction
             return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
         }
 
-        // Parse de datas (default: último mês)
+        // Parse de datas (default: mês corrente completo)
+        const now = new Date();
         const endDate = req.query.endDate
             ? new Date(req.query.endDate as string)
-            : new Date();
+            : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59); // Fim do mês atual
         const startDate = req.query.startDate
             ? new Date(req.query.startDate as string)
-            : new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+            : new Date(now.getFullYear(), now.getMonth(), 1);
 
         const summary = await financialAnalysisService.getFinancialSummary(
             dashboardId,
@@ -59,12 +60,13 @@ export async function getInsights(req: Request, res: Response, next: NextFunctio
             return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
         }
 
+        const now = new Date();
         const endDate = req.query.endDate
             ? new Date(req.query.endDate as string)
-            : new Date();
+            : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
         const startDate = req.query.startDate
             ? new Date(req.query.startDate as string)
-            : new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+            : new Date(now.getFullYear(), now.getMonth(), 1);
 
         // Verificar cache primeiro
         const cacheKey = `${startDate.toISOString()}_${endDate.toISOString()}`;
@@ -222,12 +224,13 @@ export async function getAudit(req: Request, res: Response, next: NextFunction) 
             return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
         }
 
+        const now = new Date();
         const endDate = req.query.endDate
             ? new Date(req.query.endDate as string)
-            : new Date();
+            : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59); // Fim do mês atual
         const startDate = req.query.startDate
             ? new Date(req.query.startDate as string)
-            : new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+            : new Date(now.getFullYear(), now.getMonth(), 1);
 
         // Verificar cache primeiro (TTL 60 min)
         const cacheKey = `${startDate.toISOString()}_${endDate.toISOString()}`;

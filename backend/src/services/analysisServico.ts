@@ -431,6 +431,7 @@ export class FinancialAnalysisService {
 
         // Buscar transações do PRÓXIMO mês (receitas e despesas já cadastradas)
         // Importante para CLT: trabalha mês X, recebe mês X+1
+        // Usa o mês seguinte ao endDate para garantir captura correta
         const nextMonthStart = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 1);
         const nextMonthEnd = new Date(endDate.getFullYear(), endDate.getMonth() + 2, 0, 23, 59, 59);
         const nextMonthTransactions = await prisma.transaction.findMany({
@@ -438,7 +439,9 @@ export class FinancialAnalysisService {
                 dashboardId,
                 deletedAt: null,
                 OR: [
+                    // Receitas e despesas com date no próximo mês
                     { date: { gte: nextMonthStart, lte: nextMonthEnd } },
+                    // Despesas com vencimento no próximo mês
                     { dueDate: { gte: nextMonthStart, lte: nextMonthEnd } },
                 ],
             },
