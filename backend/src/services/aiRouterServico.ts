@@ -246,7 +246,13 @@ Por favor, forneça:
 Sua função é realizar uma AUDITORIA COMPLETA e DETALHADA das finanças do usuário.
 Seja extremamente criterioso, analítico e direto. Use dados reais fornecidos para embasar cada observação.
 Responda sempre em português brasileiro com formatação markdown.
-Use emojis estrategicamente para tornar a leitura mais clara (✅ ⚠️ 🚨 📊 💰 🎯 📈 📉).`;
+Use emojis estrategicamente para tornar a leitura mais clara (✅ ⚠️ 🚨 📊 💰 🎯 📈 📉).
+
+REGRAS IMPORTANTES:
+- Despesas marcadas como "de terceiro" (isThirdParty) NÃO são pagas pelo usuário. Desconte-as do cálculo de comprometimento real da renda.
+- O usuário é CLT: ele trabalha o mês inteiro e recebe no mês seguinte. Considere receitas futuras já cadastradas ao avaliar a capacidade de pagamento.
+- Ao analisar a situação financeira, compare despesas PRÓPRIAS (excluindo terceiros) contra a renda.
+- Se houver dados do próximo mês, use-os para projetar a saúde financeira futura e avaliar liquidez.`;
 
         const periodStr = context.period
             ? `${new Date(context.period.start).toLocaleDateString('pt-BR')} a ${new Date(context.period.end).toLocaleDateString('pt-BR')}`
@@ -257,9 +263,14 @@ Use emojis estrategicamente para tornar a leitura mais clara (✅ ⚠️ 🚨 �
 ## RESUMO FINANCEIRO
 - Receita Total: R$ ${context.totalIncome.toFixed(2)}
 - Despesas Totais: R$ ${context.totalExpenses.toFixed(2)}
-- Saldo: R$ ${context.balance.toFixed(2)}
+- Despesas Próprias (que o usuário paga): R$ ${(context.ownExpenses ?? context.totalExpenses).toFixed(2)}
+- Despesas de Terceiros (NÃO paga): R$ ${(context.thirdPartyExpenses ?? 0).toFixed(2)}
+- Saldo Real (Receita - Despesas Próprias): R$ ${(context.totalIncome - (context.ownExpenses ?? context.totalExpenses)).toFixed(2)}
 - Taxa de Poupança: ${context.savingsRate.toFixed(1)}%
 - Nº de Transações: ${context.transactionCount}
+
+## DESPESAS DE TERCEIROS (o usuário NÃO paga estas)
+${context.thirdPartyTransactions?.length > 0 ? context.thirdPartyTransactions.map((t: any) => `- ${t.description}: R$ ${t.amount.toFixed(2)} (pago por: ${t.thirdPartyName || 'terceiro'})`).join('\n') : 'Nenhuma despesa de terceiro'}
 
 ## GASTOS POR CATEGORIA
 ${context.categoryBreakdown.slice(0, 8).map((c: any) => `- ${c.category}: R$ ${c.amount.toFixed(2)} (${c.percentage.toFixed(1)}%)`).join('\n')}
@@ -282,17 +293,24 @@ ${context.missingRecurrences.length > 0 ? context.missingRecurrences.map((m: any
 ## ALOCAÇÕES DE ORÇAMENTO (PLANEJAMENTO)
 ${context.allocations.length > 0 ? context.allocations.map((a: any) => `- ${a.name}: ${a.percentage}%${a.linkedCategories?.length > 0 ? ' → Categorias: ' + a.linkedCategories.join(', ') : ''}`).join('\n') : 'Sem perfil de alocação definido'}
 
+## 📅 PRÓXIMO MÊS — PROJEÇÃO
+${context.nextMonth ? `- Receitas previstas: R$ ${context.nextMonth.income.toFixed(2)}
+- Despesas próprias previstas: R$ ${context.nextMonth.expenses.toFixed(2)}
+- Saldo projetado: R$ ${(context.nextMonth.income - context.nextMonth.expenses).toFixed(2)}
+${context.nextMonth.transactions?.length > 0 ? 'Detalhes:\n' + context.nextMonth.transactions.slice(0, 10).map((t: any) => `- ${t.entryType}: ${t.description} R$ ${t.amount.toFixed(2)}${t.isThirdParty ? ' (TERCEIRO)' : ''}`).join('\n') : ''}` : 'Sem dados cadastrados para o próximo mês'}
+
 ---
 
 Com base em TODOS esses dados, gere um relatório de auditoria estruturado com:
 
-1. **📊 Diagnóstico Geral** (3-4 frases sobre a saúde financeira)
+1. **📊 Diagnóstico Geral** (3-4 frases sobre a saúde financeira, considerando que despesas de terceiros NÃO são pagas pelo usuário)
 2. **🚨 Alertas Críticos** (itens que precisam atenção imediata: recorrências faltantes, orçamentos estourados, metas em risco)
 3. **📉 Pontos de Atenção** (tendências preocupantes, categorias com gastos elevados, falta de diversificação)
 4. **✅ Pontos Positivos** (o que está indo bem)
 5. **💡 Recomendações Práticas** (5 sugestões concretas e acionáveis para o próximo mês)
 6. **🎯 Análise de Metas** (progresso e viabilidade de cada meta ativa)
-7. **📋 Sugestões de Cadastro** (lançamentos, categorias, contas ou metas que parecem estar faltando para uma gestão mais completa)`;
+7. **📅 Projeção do Próximo Mês** (com base nas receitas e despesas já cadastradas para o próximo período)
+8. **📋 Sugestões de Cadastro** (lançamentos, categorias, contas ou metas que parecem estar faltando para uma gestão mais completa)`;
 
         return this.generateText(systemPrompt, userPrompt, 'financial_analysis');
     }
@@ -313,6 +331,7 @@ Use dados reais (valores, datas, nomes) nas respostas quando relevante.
 ## CONTEXTO COMPACTO:
 Período: ${new Date(context.period.start).toLocaleDateString('pt-BR')} a ${new Date(context.period.end).toLocaleDateString('pt-BR')}
 Valores: Rec:R$${context.totalIncome.toFixed(0)}|Desp:R$${context.totalExpenses.toFixed(0)}|Saldo:R$${context.balance.toFixed(0)}
+DespPróp:R$${(context.ownExpenses ?? context.totalExpenses).toFixed(0)}|DespTerc:R$${(context.thirdPartyExpenses ?? 0).toFixed(0)}
 Poupança: ${context.savingsRate.toFixed(1)}%
 GastosTop5: ${context.categoryBreakdown.slice(0, 5).map((c: any) => `${c.category}:R$${c.amount.toFixed(0)}`).join('|')}
 Contas: ${context.accounts.map((a: any) => `${a.name}:R$${a.currentBalance.toFixed(0)}`).join('|') || 'Zero'}
@@ -320,12 +339,17 @@ Metas: ${context.goals.map((g: any) => `${g.name}:${g.progress.toFixed(0)}%`).jo
 Orçamentos: ${context.budgets.map((b: any) => `${b.name}:${b.percentage.toFixed(0)}%`).join('|') || 'Nenhum'}
 Faltantes: ${context.missingRecurrences.length > 0 ? context.missingRecurrences.map((m: any) => `${m.description}:R$${m.amount.toFixed(0)}`).join(',') : 'Nenhuma'}
 Alocações: ${context.allocations.map((a: any) => `${a.name}:${a.percentage}%`).join('|') || 'Zero'}
+PróxMês: ${context.nextMonth ? `Rec:R$${context.nextMonth.income.toFixed(0)}|Desp:R$${context.nextMonth.expenses.toFixed(0)}|Saldo:R$${(context.nextMonth.income - context.nextMonth.expenses).toFixed(0)}` : 'Sem dados'}
+${context.thirdPartyTransactions?.length > 0 ? `Terceiros: ${context.thirdPartyTransactions.slice(0, 5).map((t: any) => `${t.description}:R$${t.amount.toFixed(0)}`).join('|')}` : ''}
 
 REGRAS:
 - Sempre cite valores e nomes reais dos dados do contexto
 - Se não tiver informação suficiente, sugira ao usuário que cadastre os dados necessários
 - Seja proativo em alertar sobre problemas ou oportunidades
-- Formate com markdown e use emojis moderadamente`;
+- Formate com markdown e use emojis moderadamente
+- Despesas de terceiro (isThirdParty/DespTerc) NÃO são pagas pelo usuário. Desconte-as ao calcular comprometimento de renda real.
+- O usuário é CLT: trabalha mês X, recebe mês X+1. Considere receitas futuras cadastradas (PróxMês) ao avaliar capacidade de pagamento.
+- Se houver dados de "próximo mês", use-os para projeções e análise de liquidez.`;
 
         const provider = this.selectProvider('financial_analysis');
         const availability = this.getAvailability();

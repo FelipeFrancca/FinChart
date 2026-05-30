@@ -46,12 +46,37 @@ export async function getAllTransactions(filters: TransactionFilters = {}, dashb
   const dateField = filters.dateFilterField || 'date';
 
   if (filters.startDate || filters.endDate) {
-    where[dateField] = {};
-    if (filters.startDate) {
-      where[dateField].gte = new Date(filters.startDate);
-    }
-    if (filters.endDate) {
-      where[dateField].lte = new Date(filters.endDate);
+    if (dateField === 'dueDate') {
+      // Filtro inteligente por data de vencimento:
+      // - Despesas com dueDate: filtrar pela dueDate (vencimento da fatura)
+      // - Receitas: filtrar pela date (data de recebimento), pois receitas
+      //   geralmente não têm dueDate (ex: salário CLT recebido no mês seguinte)
+      // - Despesas sem dueDate (à vista): filtrar pela date
+      const dateRange: any = {};
+      if (filters.startDate) dateRange.gte = new Date(filters.startDate);
+      if (filters.endDate) dateRange.lte = new Date(filters.endDate);
+
+      where.AND = [
+        ...(where.AND || []),
+        {
+          OR: [
+            // Despesas com dueDate no período selecionado
+            { dueDate: dateRange, entryType: 'Despesa' },
+            // Receitas com date (recebimento) no período
+            { date: dateRange, entryType: 'Receita' },
+            // Despesas sem dueDate (à vista) com date no período
+            { dueDate: null, date: dateRange, entryType: 'Despesa' },
+          ],
+        },
+      ];
+    } else {
+      where[dateField] = {};
+      if (filters.startDate) {
+        where[dateField].gte = new Date(filters.startDate);
+      }
+      if (filters.endDate) {
+        where[dateField].lte = new Date(filters.endDate);
+      }
     }
   }
   if (filters.entryType) {
@@ -104,14 +129,19 @@ export async function getAllTransactions(filters: TransactionFilters = {}, dashb
     // Remove espaços extras e normaliza a busca
     const searchText = filters.search.trim();
 
-    // Busca em múltiplos campos ignorando case
-    where.OR = [
-      { description: { contains: searchText, mode: "insensitive" } },
-      { category: { contains: searchText, mode: "insensitive" } },
-      { subcategory: { contains: searchText, mode: "insensitive" } },
-      { notes: { contains: searchText, mode: "insensitive" } },
-      { thirdPartyName: { contains: searchText, mode: "insensitive" } },
-      { institution: { contains: searchText, mode: "insensitive" } },
+    // Busca em múltiplos campos ignorando case (usa AND para não conflitar com OR de dueDate)
+    where.AND = [
+      ...(where.AND || []),
+      {
+        OR: [
+          { description: { contains: searchText, mode: "insensitive" } },
+          { category: { contains: searchText, mode: "insensitive" } },
+          { subcategory: { contains: searchText, mode: "insensitive" } },
+          { notes: { contains: searchText, mode: "insensitive" } },
+          { thirdPartyName: { contains: searchText, mode: "insensitive" } },
+          { institution: { contains: searchText, mode: "insensitive" } },
+        ],
+      },
     ];
   }
 

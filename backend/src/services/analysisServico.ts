@@ -418,6 +418,40 @@ export class FinancialAnalysisService {
             .filter(t => t.entryType === 'Despesa')
             .reduce((sum, t) => sum + t.amount, 0);
 
+        // Separar despesas próprias vs de terceiros
+        const ownExpenses = transactions
+            .filter(t => t.entryType === 'Despesa' && !t.isThirdParty)
+            .reduce((sum, t) => sum + t.amount, 0);
+        const thirdPartyExpenses = transactions
+            .filter(t => t.entryType === 'Despesa' && t.isThirdParty)
+            .reduce((sum, t) => sum + t.amount, 0);
+        const thirdPartyTransactions = transactions
+            .filter(t => t.isThirdParty)
+            .map(t => ({ description: t.description, amount: t.amount, thirdPartyName: t.thirdPartyName }));
+
+        // Buscar transações do PRÓXIMO mês (receitas e despesas já cadastradas)
+        // Importante para CLT: trabalha mês X, recebe mês X+1
+        const nextMonthStart = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 1);
+        const nextMonthEnd = new Date(endDate.getFullYear(), endDate.getMonth() + 2, 0, 23, 59, 59);
+        const nextMonthTransactions = await prisma.transaction.findMany({
+            where: {
+                dashboardId,
+                deletedAt: null,
+                OR: [
+                    { date: { gte: nextMonthStart, lte: nextMonthEnd } },
+                    { dueDate: { gte: nextMonthStart, lte: nextMonthEnd } },
+                ],
+            },
+            orderBy: { date: 'asc' },
+        });
+
+        const nextMonthIncome = nextMonthTransactions
+            .filter(t => t.entryType === 'Receita')
+            .reduce((sum, t) => sum + t.amount, 0);
+        const nextMonthOwnExpenses = nextMonthTransactions
+            .filter(t => t.entryType === 'Despesa' && !t.isThirdParty)
+            .reduce((sum, t) => sum + t.amount, 0);
+
         // Contas
         const accounts = await prisma.account.findMany({
             where: { dashboardId, deletedAt: null, status: 'ACTIVE' },
@@ -451,7 +485,7 @@ export class FinancialAnalysisService {
         // Detectar recorrências faltantes
         const missingRecurrences = await this.detectMissingRecurrences(dashboardId);
 
-        // Calcular gastos por categoria
+        // Calcular gastos por categoria (apenas despesas próprias)
         const categoryBreakdown = this.calculateCategoryBreakdown(
             transactions.filter(t => t.entryType === 'Despesa')
         );
@@ -475,6 +509,9 @@ export class FinancialAnalysisService {
             period: { start: startDate, end: endDate },
             totalIncome: income,
             totalExpenses: expenses,
+            ownExpenses,
+            thirdPartyExpenses,
+            thirdPartyTransactions,
             balance: income - expenses,
             savingsRate: income > 0 ? ((income - expenses) / income) * 100 : 0,
             transactionCount: transactions.length,
@@ -509,6 +546,19 @@ export class FinancialAnalysisService {
                 percentage: a.percentage,
                 linkedCategories: a.linkedCategories,
             })),
+            nextMonth: {
+                income: nextMonthIncome,
+                expenses: nextMonthOwnExpenses,
+                transactions: nextMonthTransactions.slice(0, 15).map(t => ({
+                    description: t.description,
+                    amount: t.amount,
+                    entryType: t.entryType,
+                    date: t.date,
+                    dueDate: (t as any).dueDate,
+                    isThirdParty: t.isThirdParty,
+                    thirdPartyName: t.thirdPartyName,
+                })),
+            },
         };
     }
 
@@ -657,7 +707,8 @@ export class FinancialAnalysisService {
     ): Promise<string> {
         const now = new Date();
         const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        const endDate = now;
+        // Expandir até fim do próximo mês para capturar receitas futuras (CLT: trabalha mês X, recebe X+1)
+        const endDate = new Date(now.getFullYear(), now.getMonth() + 2, 0);
 
         const context = await this.getFullDashboardContext(dashboardId, userId, startDate, endDate);
 
