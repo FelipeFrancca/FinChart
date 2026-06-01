@@ -21,7 +21,7 @@ import KeyboardAlt from '@mui/icons-material/KeyboardAlt';
 import Logout from '@mui/icons-material/Logout';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { transactionService } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useTransactions } from '../hooks/api/useTransactions';
@@ -47,6 +47,7 @@ export default function Dashboard({ mode, onToggleTheme }: DashboardProps) {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { dashboardId } = useParams<{ dashboardId: string }>();
 
   const [filters, setFilters] = useState<TransactionFilters>({});
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
@@ -56,7 +57,7 @@ export default function Dashboard({ mode, onToggleTheme }: DashboardProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
   // Query para buscar transações usando o hook customizado
-  const { data: transactions = [], refetch, isLoading } = useTransactions(filters, user?.dashboardId || '');
+  const { data: transactions = [], refetch, isLoading } = useTransactions(filters, dashboardId);
 
   // Query para estatísticas
   const { data: stats } = useQuery({

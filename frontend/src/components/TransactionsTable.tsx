@@ -298,6 +298,21 @@ export default function TransactionsTable({
       const normalizedInstitution = normalizeText(t.institution || '');
       const normalizedThirdPartyName = normalizeText(t.thirdPartyName || '');
       const normalizedSubcategory = normalizeText(t.subcategory || '');
+      const normalizedType = normalizeText(t.entryType || '');
+      const normalizedFlow = normalizeText(t.flowType || '');
+      const normalizedPayment = normalizeText(t.paymentMethod || '');
+      const normalizedCard = normalizeText(t.cardBrand || '');
+      
+      // Get account info if available
+      const account = getAccountById(t.accountId);
+      const normalizedAccountName = normalizeText(account?.name || '');
+      
+      // Format date to DD/MM/YYYY for searching
+      const formattedDate = t.date ? new Date(t.date).toLocaleDateString('pt-BR') : '';
+      
+      // Format amount for searching (e.g. 1500.50 -> "1500,50" and "r$ 1500,50")
+      const formattedAmount = t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const amountWithoutDecimals = Math.floor(t.amount).toString();
       
       return (
         normalizedDescription.includes(normalizedQuery) ||
@@ -305,10 +320,18 @@ export default function TransactionsTable({
         normalizedNotes.includes(normalizedQuery) ||
         normalizedInstitution.includes(normalizedQuery) ||
         normalizedThirdPartyName.includes(normalizedQuery) ||
-        normalizedSubcategory.includes(normalizedQuery)
+        normalizedSubcategory.includes(normalizedQuery) ||
+        normalizedType.includes(normalizedQuery) ||
+        normalizedFlow.includes(normalizedQuery) ||
+        normalizedPayment.includes(normalizedQuery) ||
+        normalizedCard.includes(normalizedQuery) ||
+        normalizedAccountName.includes(normalizedQuery) ||
+        formattedDate.includes(normalizedQuery) ||
+        formattedAmount.includes(normalizedQuery) ||
+        amountWithoutDecimals.includes(normalizedQuery)
       );
     });
-  }, [transactions, localSearchQuery]);
+  }, [transactions, localSearchQuery, accounts]);
 
   // Sorting logic - uses filtered transactions
   const sortedTransactions = React.useMemo(() => {
