@@ -170,14 +170,33 @@ export default function Dashboard({ mode, onToggleTheme }: DashboardProps) {
 
   const handleThirdPartyUpdate = async (id: string, data: { isThirdParty: boolean; thirdPartyName?: string; thirdPartyDescription?: string }) => {
     try {
-      // Get dashboardId from the transaction
+      // Get the transaction to check if it belongs to an installment group
       const transaction = transactions.find((t: Transaction) => t.id === id);
       if (!transaction) {
         throw new Error('Transação não encontrada');
       }
-      await transactionService.update(id, { ...data, dashboardId: transaction.dashboardId });
-      refetch();
-      showSuccess(data.isThirdParty ? 'Terceiro adicionado.' : 'Terceiro removido.', { title: 'Atualizado!' });
+
+      const groupId = transaction.installmentGroupId;
+      if (groupId) {
+        // Propagate third-party status to ALL installments in the group
+        const result = await transactionService.updateInstallmentGroup(
+          groupId,
+          { ...data, dashboardId: transaction.dashboardId },
+          transaction.dashboardId,
+          'all'
+        );
+        refetch();
+        showSuccess(
+          data.isThirdParty
+            ? `Terceiro adicionado em ${result.count} parcelas.`
+            : `Terceiro removido de ${result.count} parcelas.`,
+          { title: 'Atualizado!' }
+        );
+      } else {
+        await transactionService.update(id, { ...data, dashboardId: transaction.dashboardId });
+        refetch();
+        showSuccess(data.isThirdParty ? 'Terceiro adicionado.' : 'Terceiro removido.', { title: 'Atualizado!' });
+      }
     } catch (error) {
       showErrorWithRetry(error, () => handleThirdPartyUpdate(id, data));
     }

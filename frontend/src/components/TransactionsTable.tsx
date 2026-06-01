@@ -1426,6 +1426,25 @@ export default function TransactionsTable({
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Transação: <strong>{selectedTransactionForThirdParty?.description}</strong>
           </Typography>
+          {selectedTransactionForThirdParty?.installmentGroupId && selectedTransactionForThirdParty?.installmentTotal > 1 && (
+            <Box
+              sx={{
+                mb: 2,
+                p: 1.5,
+                borderRadius: 1.5,
+                bgcolor: alpha(theme.palette.info.main, 0.08),
+                border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+              }}
+            >
+              <Person fontSize="small" color="info" />
+              <Typography variant="caption" color="info.main">
+                Todas as {selectedTransactionForThirdParty.installmentTotal} parcelas serão atualizadas automaticamente.
+              </Typography>
+            </Box>
+          )}
           <TextField
             fullWidth
             label="Nome do Terceiro"

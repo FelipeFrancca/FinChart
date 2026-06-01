@@ -224,8 +224,35 @@ export default function DashboardFinancial() {
 
   const handleThirdPartyUpdate = async (id: string, data: { isThirdParty: boolean; thirdPartyName?: string; thirdPartyDescription?: string }) => {
     try {
-      await updateTransaction.mutateAsync({ id, data, dashboardId });
-      showSuccess(data.isThirdParty ? 'Terceiro adicionado.' : 'Terceiro removido.', { title: 'Atualizado!' });
+      // Find the transaction to check if it belongs to an installment group
+      const transaction = transactions.find(t => t.id === id);
+      const groupId = transaction?.installmentGroupId;
+
+      if (groupId && dashboardId) {
+        // Propagate third-party status to ALL installments in the group
+        await updateInstallmentGroup.mutateAsync({
+          groupId,
+          data: data as Partial<Transaction>,
+          dashboardId,
+          scope: 'all',
+        });
+        const count = transaction?.installmentTotal || 0;
+        showSuccess(
+          data.isThirdParty
+            ? `Terceiro adicionado em ${count} parcelas.`
+            : `Terceiro removido de ${count} parcelas.`,
+          { title: 'Atualizado!' }
+        );
+      } else {
+        await updateTransaction.mutateAsync({ id, data, dashboardId });
+        showSuccess(data.isThirdParty ? 'Terceiro adicionado.' : 'Terceiro removido.', { title: 'Atualizado!' });
+      }
+
+      // If ownership filter is 'client' (Minhas), force re-fetch so the newly
+      // marked third-party transaction disappears from the filtered view automatically
+      if (filters.ownership === 'client' || filters.ownership === 'thirdParty') {
+        refetch();
+      }
     } catch (error) {
       showErrorWithRetry(error, () => handleThirdPartyUpdate(id, data));
     }
