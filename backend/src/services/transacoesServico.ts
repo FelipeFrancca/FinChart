@@ -303,9 +303,9 @@ export async function updateTransaction(id: string, data: any, dashboardId: stri
         include: { items: true },
       });
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[TransactionService] Error updating transaction:', error);
-    return null;
+    throw new Error(`Erro ao atualizar transação no banco: ${error?.message || 'Erro desconhecido'}`);
   }
 }
 
@@ -407,6 +407,8 @@ export async function updateInstallmentGroup(
   if (syncData.isThirdParty !== undefined) updateData.isThirdParty = syncData.isThirdParty;
   if (syncData.thirdPartyName !== undefined) updateData.thirdPartyName = syncData.thirdPartyName;
   if (syncData.thirdPartyDescription !== undefined) updateData.thirdPartyDescription = syncData.thirdPartyDescription;
+  if (syncData.installmentTotal !== undefined) updateData.installmentTotal = syncData.installmentTotal;
+  if (syncData.accountId !== undefined) updateData.accountId = syncData.accountId;
 
   console.log(`[TransactionService] Updating installment group ${groupId} with scope ${scope}:`, updateData);
 

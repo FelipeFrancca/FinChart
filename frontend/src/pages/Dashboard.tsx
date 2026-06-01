@@ -24,6 +24,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { transactionService } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useTransactions } from '../hooks/api/useTransactions';
 import type { Transaction, TransactionFilters } from '../types';
 import MetricsCards from '../components/MetricsCards';
 import FiltersCard from '../components/FiltersCard';
@@ -54,11 +55,8 @@ export default function Dashboard({ mode, onToggleTheme }: DashboardProps) {
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
-  // Query para buscar transações
-  const { data: transactions = [], refetch, isLoading } = useQuery({
-    queryKey: ['transactions', filters],
-    queryFn: () => transactionService.getAll(filters),
-  });
+  // Query para buscar transações usando o hook customizado
+  const { data: transactions = [], refetch, isLoading } = useTransactions(filters, user?.dashboardId || '');
 
   // Query para estatísticas
   const { data: stats } = useQuery({

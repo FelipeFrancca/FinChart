@@ -71,16 +71,25 @@ export const atualizarTransacao = async (req: AuthRequest, res: Response) => {
     if (!dashboardId) {
         return res.status(400).json({ success: false, error: 'dashboardId é obrigatório' });
     }
-    const transacao = await transacoesServico.updateTransaction(req.params.id, req.body, dashboardId, req.user!.userId);
     
-    // Emitir evento WebSocket
-    websocketService.emitToDashboard(dashboardId, WS_EVENTS.TRANSACTION_UPDATED, {
-        transaction: transacao,
-        userId: req.user!.userId,
-    });
-    
-    aiCache.invalidate(dashboardId); // Invalidar cache de IA
-    res.json({ success: true, data: transacao });
+    try {
+        const transacao = await transacoesServico.updateTransaction(req.params.id, req.body, dashboardId, req.user!.userId);
+        
+        if (!transacao) {
+            return res.status(500).json({ success: false, error: 'Falha ao atualizar a transação' });
+        }
+
+        // Emitir evento WebSocket
+        websocketService.emitToDashboard(dashboardId, WS_EVENTS.TRANSACTION_UPDATED, {
+            transaction: transacao,
+            userId: req.user!.userId,
+        });
+        
+        aiCache.invalidate(dashboardId); // Invalidar cache de IA
+        res.json({ success: true, data: transacao });
+    } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message || 'Erro interno ao atualizar transação' });
+    }
 };
 
 export const deletarTransacao = async (req: AuthRequest, res: Response) => {
