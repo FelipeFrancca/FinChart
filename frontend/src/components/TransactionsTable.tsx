@@ -320,6 +320,29 @@ export default function TransactionsTable({
         return order === 'asc' ? dateA - dateB : dateB - dateA;
       }
 
+      // Handle installment sorting - sort by remaining installments
+      if (orderBy === 'installmentNumber') {
+        const hasA = a.installmentTotal > 1;
+        const hasB = b.installmentTotal > 1;
+
+        // Non-installment transactions always go to the bottom
+        if (hasA && !hasB) return -1;
+        if (!hasA && hasB) return 1;
+        if (!hasA && !hasB) return 0;
+
+        // Both have installments - sort by remaining (total - current)
+        const remainingA = a.installmentTotal - a.installmentNumber;
+        const remainingB = b.installmentTotal - b.installmentNumber;
+
+        if (remainingA !== remainingB) {
+          return order === 'asc' ? remainingA - remainingB : remainingB - remainingA;
+        }
+        // Tie-break by total installments (fewer total = simpler purchase)
+        return order === 'asc'
+          ? a.installmentTotal - b.installmentTotal
+          : b.installmentTotal - a.installmentTotal;
+      }
+
       // Handle strings (case insensitive)
       const valA = a[orderBy] ?? '';
       const valB = b[orderBy] ?? '';
@@ -1035,9 +1058,15 @@ export default function TransactionsTable({
                     </TableSortLabel>
                   </Tooltip>
                 </TableCell>
-                <TableCell>
-                  <Tooltip title="Informação de parcelas" arrow>
-                    <span>Parcela</span>
+                <TableCell sortDirection={orderBy === 'installmentNumber' ? order : false}>
+                  <Tooltip title="Ordenar por parcelas restantes" arrow>
+                    <TableSortLabel
+                      active={orderBy === 'installmentNumber'}
+                      direction={orderBy === 'installmentNumber' ? order : 'asc'}
+                      onClick={() => handleRequestSort('installmentNumber')}
+                    >
+                      Parcela
+                    </TableSortLabel>
                   </Tooltip>
                 </TableCell>
                 <TableCell align="center">Ações</TableCell>
@@ -1270,15 +1299,29 @@ export default function TransactionsTable({
                         </Tooltip>
                       </TableCell>
                       <TableCell>
-                        {transaction.installmentTotal > 0 ? (
-                          <Tooltip title={`Parcela ${transaction.installmentNumber} de ${transaction.installmentTotal}`} arrow>
-                            <Chip
-                              label={`${transaction.installmentNumber}/${transaction.installmentTotal}`}
-                              size="small"
-                              variant="outlined"
-                              sx={{ borderRadius: 1, fontWeight: 500 }}
-                            />
-                          </Tooltip>
+                        {transaction.installmentTotal > 1 ? (() => {
+                          const remaining = transaction.installmentTotal - transaction.installmentNumber;
+                          const progress = transaction.installmentNumber / transaction.installmentTotal;
+                          return (
+                            <Tooltip
+                              title={
+                                remaining === 0
+                                  ? `Última parcela (${transaction.installmentNumber}/${transaction.installmentTotal})`
+                                  : `Parcela ${transaction.installmentNumber} de ${transaction.installmentTotal} • ${remaining} restante${remaining > 1 ? 's' : ''}`
+                              }
+                              arrow
+                            >
+                              <Chip
+                                label={`${transaction.installmentNumber}/${transaction.installmentTotal}`}
+                                size="small"
+                                variant="outlined"
+                                color={progress >= 1 ? 'success' : progress >= 0.7 ? 'info' : 'default'}
+                                sx={{ borderRadius: 1, fontWeight: 500 }}
+                              />
+                            </Tooltip>
+                          );
+                        })() : transaction.installmentTotal === 1 ? (
+                          <Typography variant="body2" color="text.disabled">—</Typography>
                         ) : (
                           <Typography variant="body2" color="text.disabled">—</Typography>
                         )}
