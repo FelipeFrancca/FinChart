@@ -10,20 +10,21 @@ import { asyncHandler } from '../middleware/errorHandler';
 
 const router = Router();
 
-router.post('/', authenticateToken, asyncHandler(transacoesController.criarTransacao as any));
-router.post('/bulk', authenticateToken, asyncHandler(transacoesController.criarTransacoesEmLote as any));
-router.delete('/bulk', authenticateToken, asyncHandler(transacoesController.deletarTransacoesEmLote as any));
-router.get('/', authenticateToken, asyncHandler(transacoesController.listarTransacoes as any));
-router.get('/summary', authenticateToken, asyncHandler(transacoesController.obterResumo as any));
-router.get('/stats/summary', authenticateToken, asyncHandler(transacoesController.obterResumo as any));
-router.get('/export', authenticateToken, asyncHandler(transacoesController.exportarTransacoes as any));
+router.post('/', authenticateToken as any, asyncHandler(transacoesController.criarTransacao as any));
+router.post('/bulk', authenticateToken as any, asyncHandler(transacoesController.criarTransacoesEmLote as any));
+router.delete('/bulk', authenticateToken as any, asyncHandler(transacoesController.deletarTransacoesEmLote as any));
+router.get('/', authenticateToken as any, asyncHandler(transacoesController.listarTransacoes as any));
+router.get('/summary', authenticateToken as any, asyncHandler(transacoesController.obterResumo as any));
+router.get('/stats/summary', authenticateToken as any, asyncHandler(transacoesController.obterResumo as any));
+router.get('/export', authenticateToken as any, asyncHandler(transacoesController.exportarTransacoes as any));
 
 // Rotas de grupo de parcelas (devem vir antes de /:id)
-router.get('/installment-group/:groupId', authenticateToken, asyncHandler(transacoesController.obterGrupoParcelas as any));
-router.put('/installment-group/:groupId', authenticateToken, asyncHandler(transacoesController.atualizarGrupoParcelas as any));
+router.get('/installment-group/:groupId', authenticateToken as any, asyncHandler(transacoesController.obterGrupoParcelas as any));
+router.put('/installment-group/:groupId', authenticateToken as any, asyncHandler(transacoesController.atualizarGrupoParcelas as any));
 
-router.get('/:id', authenticateToken, validateParams(idParamSchema), asyncHandler(transacoesController.obterTransacao as any));
-router.put('/:id', authenticateToken, validateParams(idParamSchema), asyncHandler(transacoesController.atualizarTransacao as any));
-router.delete('/:id', authenticateToken, validateParams(idParamSchema), asyncHandler(transacoesController.deletarTransacao as any));
+router.get('/:id', authenticateToken as any, validateParams(idParamSchema), asyncHandler(transacoesController.obterTransacao as any));
+router.put('/:id', authenticateToken as any, validateParams(idParamSchema), asyncHandler(transacoesController.atualizarTransacao as any));
+router.patch('/:id/suspend', authenticateToken as any, validateParams(idParamSchema), asyncHandler(transacoesController.alternarSuspensaoTransacao as any));
+router.delete('/:id', authenticateToken as any, validateParams(idParamSchema), asyncHandler(transacoesController.deletarTransacao as any));
 
 export default router;

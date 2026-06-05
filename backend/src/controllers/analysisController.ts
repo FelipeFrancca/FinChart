@@ -4,6 +4,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { financialAnalysisService } from '../services/analysisServico';
+import { cashFlowService } from '../services/cashFlowService';
 import { aiRouter } from '../services/aiRouterServico';
 import { aiCache } from '../services/aiCacheServico';
 import { cronService } from '../services/cronServico';
@@ -312,6 +313,102 @@ export async function chatWithAI(req: Request, res: Response, next: NextFunction
                 response,
                 generatedAt: new Date().toISOString(),
             },
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+/**
+ * GET /api/analysis/projection/:dashboardId
+ * Projeção de fluxo de caixa dia a dia (Traffic Light)
+ */
+export async function getCashFlowProjection(req: Request, res: Response, next: NextFunction) {
+    try {
+        const { dashboardId } = req.params;
+        const userId = (req as any).user?.userId;
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
+        }
+
+        const startDate = req.query.startDate
+            ? new Date(req.query.startDate as string)
+            : new Date();
+        const daysToProject = parseInt(req.query.daysToProject as string) || 30;
+        const yellowThreshold = parseFloat(req.query.yellowThreshold as string) ?? 500;
+
+        const result = await cashFlowService.generateProjection(
+            userId,
+            dashboardId,
+            startDate,
+            daysToProject,
+            undefined,
+            yellowThreshold
+        );
+
+        res.json({
+            success: true,
+            data: result,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+/**
+ * POST /api/analysis/simulate/:dashboardId
+ * Simulação de fluxo de caixa com transações injetadas (sem alterar o banco)
+ */
+export async function simulateCashFlow(req: Request, res: Response, next: NextFunction) {
+    try {
+        const { dashboardId } = req.params;
+        const userId = (req as any).user?.userId;
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
+        }
+
+        const { mockTransactions, startDate, daysToProject, yellowThreshold } = req.body;
+
+        const effectiveStartDate = startDate ? new Date(startDate) : new Date();
+
+        const result = await cashFlowService.generateProjection(
+            userId,
+            dashboardId,
+            effectiveStartDate,
+            daysToProject ?? 30,
+            mockTransactions,
+            yellowThreshold ?? 500
+        );
+
+        res.json({
+            success: true,
+            data: result,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+/**
+ * GET /api/analysis/daily-pacing/:dashboardId
+ * Obtém a cota diária de gastos livres (Daily Pacing)
+ */
+export async function getDailyPacing(req: Request, res: Response, next: NextFunction) {
+    try {
+        const { dashboardId } = req.params;
+        const userId = (req as any).user?.userId;
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
+        }
+
+        const pacing = await financialAnalysisService.calculateDailyPacing(dashboardId, userId);
+
+        res.json({
+            success: true,
+            data: pacing,
         });
     } catch (error) {
         next(error);

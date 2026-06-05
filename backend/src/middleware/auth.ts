@@ -14,7 +14,7 @@ export interface AuthRequest extends Request {
  * Middleware de autenticação obrigatória
  * Verifica se o token JWT é válido
  */
-export function authenticateToken(req: AuthRequest, res: Response, next: NextFunction): void {
+export function authenticateToken(req: Request, res: Response, next: NextFunction): void {
   try {
     const authHeader = req.headers.authorization;
     const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
@@ -25,7 +25,7 @@ export function authenticateToken(req: AuthRequest, res: Response, next: NextFun
 
     try {
       const payload = verifyAccessToken(token);
-      req.user = payload;
+      (req as AuthRequest).user = payload;
       next();
     } catch (error) {
       logger.warn("Token inválido ou expirado", "Auth", {
@@ -45,14 +45,14 @@ export function authenticateToken(req: AuthRequest, res: Response, next: NextFun
  * Se houver token, valida e anexa ao request
  * Se não houver ou for inválido, continua sem autenticação
  */
-export function optionalAuth(req: AuthRequest, res: Response, next: NextFunction): void {
+export function optionalAuth(req: Request, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
   const token = authHeader && authHeader.split(" ")[1];
 
   if (token) {
     try {
       const payload = verifyAccessToken(token);
-      req.user = payload;
+      (req as AuthRequest).user = payload;
     } catch (error) {
       // Token invalid, but continue without authentication
       logger.debug("Token opcional inválido, continuando sem auth", "Auth", {

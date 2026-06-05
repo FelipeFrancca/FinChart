@@ -82,6 +82,60 @@ function parseBRLCurrency(input: string): number {
   return isNaN(num) ? 0 : num;
 }
 
+/**
+ * CurrencyField: Mantém o estado local durante a digitação para evitar o pulo do cursor
+ */
+const CurrencyField = ({ field, error }: { field: any, error?: any }) => {
+  const [localValue, setLocalValue] = useState<string>(
+    field.value ? formatBRLCurrency(field.value) : ''
+  );
+
+  // Sincronizar apenas se o valor externo mudar (ex: ao abrir para editar)
+  useEffect(() => {
+    const numericLocal = parseBRLCurrency(localValue);
+    if (field.value !== numericLocal && typeof field.value === 'number') {
+      setLocalValue(formatBRLCurrency(field.value));
+    }
+  }, [field.value]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target.value;
+    // Permite digitar livremente: números, pontos e vírgulas
+    setLocalValue(input);
+    
+    // Atualiza o formulário com o valor numérico por baixo dos panos
+    const cleaned = input.replace(/[^\d.,]/g, '');
+    field.onChange(parseBRLCurrency(cleaned));
+  };
+
+  const handleBlur = () => {
+    // Ao perder o foco, formata lindamente com milhares e decimais corretos
+    const numericValue = parseBRLCurrency(localValue);
+    if (numericValue > 0) {
+      setLocalValue(formatBRLCurrency(numericValue));
+    } else {
+      setLocalValue('');
+    }
+    field.onChange(numericValue);
+  };
+
+  return (
+    <TextField
+      fullWidth
+      label="Valor"
+      value={localValue}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      InputProps={{
+        startAdornment: <InputAdornment position="start">R$</InputAdornment>,
+      }}
+      placeholder="0,00"
+      error={!!error}
+      helperText={error?.message}
+    />
+  );
+};
+
 interface TransactionFormProps {
   open: boolean;
   transaction: Transaction | null;
@@ -442,31 +496,9 @@ export default function TransactionForm({ open, transaction, onClose, onSave }: 
                 name="amount"
                 control={control}
                 rules={{ required: 'Valor é obrigatório', validate: v => (typeof v === 'number' ? v : parseBRLCurrency(String(v))) > 0 || 'Valor deve ser maior que zero' }}
-                render={({ field, fieldState: { error } }) => {
-                  // Store display value separately for formatting
-                  const displayValue = field.value ? formatBRLCurrency(field.value) : '';
-                  
-                  return (
-                    <TextField
-                      fullWidth
-                      label="Valor"
-                      value={displayValue}
-                      onChange={(e) => {
-                        const input = e.target.value;
-                        // Allow only numbers, dots and comma
-                        const cleaned = input.replace(/[^\d.,]/g, '');
-                        const numericValue = parseBRLCurrency(cleaned);
-                        field.onChange(numericValue);
-                      }}
-                      InputProps={{
-                        startAdornment: <InputAdornment position="start">R$</InputAdornment>,
-                      }}
-                      placeholder="0,00"
-                      error={!!error}
-                      helperText={error?.message}
-                    />
-                  );
-                }}
+                render={({ field, fieldState: { error } }) => (
+                  <CurrencyField field={field} error={error} />
+                )}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -758,30 +790,74 @@ export default function TransactionForm({ open, transaction, onClose, onSave }: 
               />
             </Grid>
 
-            {/* Linha 6: Parcelamento (Condicional) */}
-            {watch('paymentMethod') === 'Cartão de Crédito' && (
-              <>
-                <Grid item xs={6}>
-                  <Controller
-                    name="installmentNumber"
-                    control={control}
-                    render={({ field }) => (
-                      <TextField {...field} type="number" fullWidth label="Parcela Atual" />
-                    )}
-                  />
-                </Grid>
-                <Grid item xs={6}>
-                  <Controller
-                    name="installmentTotal"
-                    control={control}
-                    render={({ field }) => (
-                      <TextField {...field} type="number" fullWidth label="Total de Parcelas" />
-                    )}
-                  />
-                </Grid>
-              </>
-            )}
-
+            {/* Linha 6: Parcelamento */}
+            <Grid item xs={12}>
+              <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 2 }}>
+                <FormControlLabel
+                  control={
+                    <Switch 
+                      checked={watch('installmentTotal') > 1 || watch('paymentMethod') === 'Cartão de Crédito'}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setValue('installmentTotal', 2);
+                          setValue('installmentNumber', 1);
+                        } else {
+                          setValue('installmentTotal', 1);
+                          setValue('installmentNumber', 1);
+                          if (watch('paymentMethod') === 'Cartão de Crédito') {
+                            setValue('paymentMethod', ''); // Forçar o usuário a mudar se ele desmarcar parcelamento de cartão
+                          }
+                        }
+                      }}
+                    />
+                  }
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <CreditCardIcon sx={{ color: 'primary.main' }} />
+                      <Typography variant="body1">
+                        Transação Parcelada
+                      </Typography>
+                    </Box>
+                  }
+                />
+                <Collapse in={watch('installmentTotal') > 1 || watch('paymentMethod') === 'Cartão de Crédito'}>
+                  <Grid container spacing={2} sx={{ mt: 1 }}>
+                    <Grid item xs={6}>
+                      <Controller
+                        name="installmentNumber"
+                        control={control}
+                        render={({ field }) => (
+                          <TextField 
+                            {...field} 
+                            type="number" 
+                            fullWidth 
+                            label="Parcela Atual" 
+                            inputProps={{ min: 1 }}
+                            onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                          />
+                        )}
+                      />
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Controller
+                        name="installmentTotal"
+                        control={control}
+                        render={({ field }) => (
+                          <TextField 
+                            {...field} 
+                            type="number" 
+                            fullWidth 
+                            label="Total de Parcelas" 
+                            inputProps={{ min: 1 }}
+                            onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                          />
+                        )}
+                      />
+                    </Grid>
+                  </Grid>
+                </Collapse>
+              </Box>
+            </Grid>
             {/* Linha 7: Notas */}
             <Grid item xs={12}>
               <Controller

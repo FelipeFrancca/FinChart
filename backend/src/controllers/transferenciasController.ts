@@ -12,7 +12,7 @@ export const criarTransferencia = async (req: AuthRequest, res: Response) => {
 };
 
 export const listarTransferencias = async (req: AuthRequest, res: Response) => {
-    const transferencias = await transferenciasServico.getTransfers(req.query, req.user!.userId);
+    const transferencias = await transferenciasServico.getTransfers(req.query as any, req.user!.userId);
     res.json({ success: true, data: transferencias });
 };
 

@@ -20,7 +20,7 @@
     "isolatedModules": true,
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["bun-types"]
+    "types": ["bun-types", "jest"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

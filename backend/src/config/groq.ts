@@ -92,12 +92,14 @@ export class GroqConfig {
      * Gera uma resposta de chat
      */
     public async chat(
-        messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
+        messages: any[],
         options?: {
             temperature?: number;
             maxTokens?: number;
+            tools?: any[];
+            tool_choice?: any;
         }
-    ): Promise<string> {
+    ): Promise<any> {
         const client = this.getClient();
         const model = this.getCurrentModel();
 
@@ -107,9 +109,11 @@ export class GroqConfig {
                 messages,
                 temperature: options?.temperature ?? 0.3,
                 max_tokens: options?.maxTokens ?? 2048,
+                tools: options?.tools,
+                tool_choice: options?.tool_choice,
             });
 
-            return response.choices[0]?.message?.content || '';
+            return response.choices[0]?.message || { content: '' };
         } catch (error: any) {
             logger.error(`Erro no Groq chat (modelo: ${model})`, error, 'GroqConfig');
 

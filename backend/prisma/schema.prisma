@@ -96,6 +96,9 @@ model Transaction {
   // Itens da transação (para cupons fiscais com múltiplos produtos)
   items TransactionItem[]
 
+  // Status customizado
+  isSuspended Boolean @default(false)
+
   // Soft delete
   deletedAt DateTime?
   deletedBy String?
@@ -115,6 +118,7 @@ model Transaction {
   @@index([deletedAt])
   @@index([isThirdParty])
   @@index([installmentGroupId])
+  @@index([isSuspended])
   @@map("transactions")
 }
 
@@ -513,6 +517,7 @@ model RecurringTransaction {
 
   // Controle
   isActive Boolean @default(true)
+  isSuspended Boolean @default(false)
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -531,6 +536,7 @@ model RecurringTransaction {
   @@index([userId, nextDate])
   @@index([nextDate, isActive])
   @@index([deletedAt])
+  @@index([isSuspended])
   @@map("recurring_transactions")
 }
 

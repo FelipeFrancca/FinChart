@@ -66,7 +66,7 @@ async function sendEmailNotification(alert: Alert, userId: string) {
             const metadata = alert.metadata as any;
             await emailServico.enviarAlertaOrcamento({
                 email: user.email,
-                nome: user.name,
+                nome: user.name || 'Usuário',
                 categoria: metadata?.categoria || 'Categoria',
                 limite: metadata?.limite || 0,
                 gasto: metadata?.gasto || 0,
@@ -76,7 +76,7 @@ async function sendEmailNotification(alert: Alert, userId: string) {
             const metadata = alert.metadata as any;
             await emailServico.enviarAlertaMeta({
                 email: user.email,
-                nome: user.name,
+                nome: user.name || 'Usuário',
                 meta: metadata?.meta || 'Meta',
                 valorAlvo: metadata?.valorAlvo || 0,
                 valorAtual: metadata?.valorAtual || 0,

@@ -24,8 +24,8 @@ const createRecurringSchema = z.object({
     endDate: z.coerce.date().optional().nullable(),
 }).passthrough();
 
-router.post('/', authenticateToken, validateBody(createRecurringSchema), asyncHandler(recorrenciaController.criarRecorrente as any));
-router.get('/', authenticateToken, asyncHandler(recorrenciaController.listarRecorrentes as any));
-router.post('/process', authenticateToken, asyncHandler(recorrenciaController.processarRecorrencias as any));
+router.post('/', authenticateToken as any, validateBody(createRecurringSchema), asyncHandler(recorrenciaController.criarRecorrente as any));
+router.get('/', authenticateToken as any, asyncHandler(recorrenciaController.listarRecorrentes as any));
+router.post('/process', authenticateToken as any, asyncHandler(recorrenciaController.processarRecorrencias as any));
 
 export default router;

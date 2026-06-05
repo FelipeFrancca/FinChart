@@ -7,11 +7,11 @@ import { createBudgetSchema, updateBudgetSchema, queryBudgetsSchema } from '../d
 
 const router = Router();
 
-router.post('/', authenticateToken, validateBody(createBudgetSchema), asyncHandler(orcamentosController.criarOrcamento as any));
-router.get('/', authenticateToken, validateQuery(queryBudgetsSchema), asyncHandler(orcamentosController.listarOrcamentos as any));
-router.get('/summary', authenticateToken, asyncHandler(orcamentosController.obterResumo as any));
-router.get('/:id', authenticateToken, validateParams(idParamSchema), asyncHandler(orcamentosController.obterOrcamento as any));
-router.put('/:id', authenticateToken, validateParams(idParamSchema), validateBody(updateBudgetSchema), asyncHandler(orcamentosController.atualizarOrcamento as any));
-router.delete('/:id', authenticateToken, validateParams(idParamSchema), asyncHandler(orcamentosController.deletarOrcamento as any));
+router.post('/', authenticateToken as any, validateBody(createBudgetSchema), asyncHandler(orcamentosController.criarOrcamento as any));
+router.get('/', authenticateToken as any, validateQuery(queryBudgetsSchema), asyncHandler(orcamentosController.listarOrcamentos as any));
+router.get('/summary', authenticateToken as any, asyncHandler(orcamentosController.obterResumo as any));
+router.get('/:id', authenticateToken as any, validateParams(idParamSchema), asyncHandler(orcamentosController.obterOrcamento as any));
+router.put('/:id', authenticateToken as any, validateParams(idParamSchema), validateBody(updateBudgetSchema), asyncHandler(orcamentosController.atualizarOrcamento as any));
+router.delete('/:id', authenticateToken as any, validateParams(idParamSchema), asyncHandler(orcamentosController.deletarOrcamento as any));
 
 export default router;

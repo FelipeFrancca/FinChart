@@ -229,3 +229,29 @@ export const exportarTransacoes = async (req: AuthRequest, res: Response) => {
         res.status(500).json({ success: false, error: 'Erro ao exportar transações' });
     }
 };
+
+export const alternarSuspensaoTransacao = async (req: AuthRequest, res: Response) => {
+    const { dashboardId } = req.body;
+    if (!dashboardId) {
+        return res.status(400).json({ success: false, error: 'dashboardId é obrigatório' });
+    }
+
+    try {
+        const transacao = await transacoesServico.getTransactionById(req.params.id, dashboardId, req.user!.userId);
+        if (!transacao) {
+            return res.status(404).json({ success: false, error: 'Transação não encontrada' });
+        }
+
+        const atualizada = await transacoesServico.updateTransaction(
+            req.params.id,
+            { isSuspended: !transacao.isSuspended },
+            dashboardId,
+            req.user!.userId
+        );
+
+        aiCache.invalidate(dashboardId); // Invalidar cache de IA
+        res.json({ success: true, data: atualizada });
+    } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message || 'Erro interno ao suspender transação' });
+    }
+};

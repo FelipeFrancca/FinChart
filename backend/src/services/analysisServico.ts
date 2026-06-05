@@ -706,16 +706,108 @@ export class FinancialAnalysisService {
         dashboardId: string,
         userId: string,
         message: string,
-        history: { role: 'user' | 'assistant'; content: string }[]
+        history: { role: 'system' | 'user' | 'assistant'; content: string }[]
     ): Promise<string> {
+        let enrichedContext: any = null;
+
+        // Se o histórico não contém a mensagem de sistema (geralmente enviada na primeira interação do chat),
+        // ou se o histórico estiver vazio, carregamos todo o contexto pesado.
+        const hasSystemPrompt = history.some(msg => msg.role === 'system');
+
+        if (!hasSystemPrompt && history.length === 0) {
+            const now = new Date();
+            const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            const endDate = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+
+            const context = await this.getFullDashboardContext(dashboardId, userId, startDate, endDate);
+
+            // Obter projeção para os próximos 30 dias
+            const { cashFlowService } = await import('./cashFlowService');
+            const projection = await cashFlowService.generateProjection(userId, dashboardId, now, 30);
+            
+            // Obter daily pacing
+            const pacing = await this.calculateDailyPacing(dashboardId, userId);
+
+            // Adicionar projeção e pacing ao contexto
+            enrichedContext = {
+                ...context,
+                cashFlowProjectionSummary: projection.summary,
+                dailyPacing: pacing
+            };
+        }
+
+        return aiRouter.generateFinancialChat(dashboardId, userId, enrichedContext, message, history);
+    }
+    /**
+     * Calcula a Cota Diária (Daily Pacing) do mês atual
+     */
+    async calculateDailyPacing(dashboardId: string, userId: string) {
         const now = new Date();
-        const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        // Expandir até fim do próximo mês para capturar receitas futuras (CLT: trabalha mês X, recebe X+1)
-        const endDate = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        
+        // Calcular quantos dias restam até o último dia do mês corrente (incluindo o dia de hoje)
+        const lastDayOfMonth = new Date(year, month + 1, 0);
+        const remainingDays = lastDayOfMonth.getDate() - now.getDate() + 1;
+        
+        const monthStart = new Date(year, month, 1);
+        const monthEnd = new Date(year, month + 1, 0, 23, 59, 59);
 
-        const context = await this.getFullDashboardContext(dashboardId, userId, startDate, endDate);
+        const budgets = await prisma.budget.findMany({
+            where: { userId, isActive: true, deletedAt: null }
+        });
+        
+        const transactions = await prisma.transaction.findMany({
+            where: {
+                dashboardId,
+                date: { gte: monthStart, lte: monthEnd },
+                deletedAt: null
+            }
+        });
+        
+        let freeBudget = 0;
+        
+        const discretionaryBudget = budgets.find(b => 
+            b.name.toLowerCase().includes('lazer') || 
+            b.name.toLowerCase().includes('livre') || 
+            b.name.toLowerCase().includes('diária') ||
+            b.category?.toLowerCase().includes('lazer')
+        );
 
-        return aiRouter.generateFinancialChat(context, message, history);
+        if (discretionaryBudget) {
+            freeBudget = Number(discretionaryBudget.amount);
+        } else {
+            const income = transactions
+                .filter(t => t.entryType === 'Receita')
+                .reduce((sum, t) => sum + Number(t.amount), 0);
+                
+            const fixedExpenses = transactions
+                .filter(t => t.entryType === 'Despesa' && t.flowType === 'Fixa')
+                .reduce((sum, t) => sum + Number(t.amount), 0);
+                
+            freeBudget = income - fixedExpenses;
+        }
+
+        const variableExpenses = transactions
+            .filter(t => t.entryType === 'Despesa' && t.flowType === 'Variável' && t.date <= now)
+            .reduce((sum, t) => sum + Number(t.amount), 0);
+
+        let dailyPacing = 0;
+        const remainingBudget = freeBudget - variableExpenses;
+        
+        if (remainingDays > 0) {
+            dailyPacing = remainingBudget / remainingDays;
+        }
+
+        const isOverBudget = dailyPacing <= 0;
+        
+        return {
+            budgetLimit: freeBudget,
+            currentSpent: variableExpenses,
+            remainingDays,
+            dailyPacing: isOverBudget ? 0 : dailyPacing,
+            isOverBudget
+        };
     }
 }
 

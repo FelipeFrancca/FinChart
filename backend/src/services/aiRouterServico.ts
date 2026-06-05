@@ -99,10 +99,11 @@ export class AIRouterService {
                 recommendations: 1024,
                 general_chat: 1024
             };
-            return groqConfig.chat([
+            const response = await groqConfig.chat([
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt },
             ], { maxTokens: tokenLimits[taskType] });
+            return response.content || '';
         }
 
         // Fallback para Gemini
@@ -333,16 +334,28 @@ Com base em TODOS esses dados, gere um relatório de auditoria estruturado com:
      * Chat interativo com contexto financeiro completo
      */
     public async generateFinancialChat(
-        context: any,
+        dashboardId: string,
+        userId: string,
+        context: any | null,
         userMessage: string,
-        history: { role: 'user' | 'assistant'; content: string }[]
+        history: { role: 'system' | 'user' | 'assistant'; content: string }[]
     ): Promise<string> {
-        const ownExpChat = (context.ownExpenses ?? context.totalExpenses);
-        const nextIncomeChat = context.nextMonth?.income ?? 0;
-        const realCLT = nextIncomeChat - ownExpChat;
+        const provider = this.selectProvider('financial_analysis');
+        const availability = this.getAvailability();
 
-        const systemPrompt = `Você é o assistente financeiro pessoal do FinChart, um consultor altamente especializado em finanças brasileiras.
+        let messages: any[] = [];
+
+        // Se o contexto for fornecido (início da conversa), construímos o system prompt
+        if (context) {
+            const ownExpChat = (context.ownExpenses ?? context.totalExpenses);
+            const nextIncomeChat = context.nextMonth?.income ?? 0;
+            const realCLT = nextIncomeChat - ownExpChat;
+
+            const systemPrompt = `Você é um analista financeiro pragmático focado em sobrevivência de caixa do FinChart.
 Você tem acesso COMPLETO aos dados financeiros do usuário. Use-os para responder com precisão.
+Use os dados de Projeção de 30 dias e a Cota Diária fornecidos. Se a projeção indicar saldo futuro RED (negativo), não sugira vagamente para gastar menos. Proponha metas exatas de 'sprints' de renda extra com valores e datas, ou recomende o congelamento de contas não essenciais.
+Caso o usuário pergunte 'e se eu ganhar X reais', ou algo similar, acione a tool de simulação.
+Se você rodar uma simulação de renda extra e o usuário concordar com a estratégia para sair do vermelho, acione a ferramenta 'create_sprint_goal' para fixar essa meta no painel do usuário e avise-o que a meta de Sprint foi registrada com sucesso.
 Seja direto, prático e acionável. Responda em português brasileiro.
 Use dados reais (valores, datas, nomes) nas respostas quando relevante.
 
@@ -351,6 +364,10 @@ O usuário é CLT. Trabalha mês X, recebe mês X+1. Se receita do período = R$
 SALDO REAL CLT = PróxMês Receita - Despesas Próprias atuais = R$${realCLT.toFixed(0)}
 ${realCLT >= 0 ? '✅ Saldo positivo — situação saudável.' : '⚠️ Despesas excedem receita prevista.'}
 NÃO diga "sem receita" se PróxMês tem receita. Compare SEMPRE despesas próprias vs receita próx mês.
+
+## PROJEÇÃO 30 DIAS E COTA DIÁRIA:
+Projeção: ${context.cashFlowProjectionSummary ? JSON.stringify(context.cashFlowProjectionSummary) : 'Não disponível'}
+Daily Pacing: ${context.dailyPacing ? JSON.stringify(context.dailyPacing) : 'Não disponível'}
 
 ## CONTEXTO COMPACTO:
 Período: ${new Date(context.period.start).toLocaleDateString('pt-BR')} a ${new Date(context.period.end).toLocaleDateString('pt-BR')}
@@ -375,20 +392,14 @@ REGRAS:
 - SEMPRE compare despesas PRÓPRIAS vs receita do PRÓXIMO MÊS para avaliar saúde financeira.
 - Se a receita do próximo mês cobre as despesas próprias, a situação é SAUDÁVEL.`;
 
-        const provider = this.selectProvider('financial_analysis');
-        const availability = this.getAvailability();
+            messages.push({ role: 'system', content: systemPrompt });
+        }
 
-        // Montar mensagens com histórico
-        const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
-            { role: 'system', content: systemPrompt },
-        ];
-
-        // Adicionar histórico compacto (limitar a últimas 6 mensagens)
+        // Adicionar histórico compacto. Se context for null, assumimos que o system prompt já vem no history
         const recentHistory = history.slice(-6);
         for (const msg of recentHistory) {
-            // Truncar mensagens do assistente muito longas para economizar tokens
             let content = msg.content;
-            if (msg.role === 'assistant' && content.length > 400) {
+            if (msg.role === 'assistant' && content && content.length > 400) {
                 content = content.substring(0, 400) + '... [truncado]';
             }
             messages.push({ role: msg.role, content });
@@ -400,7 +411,121 @@ REGRAS:
         logger.info(`Chat financeiro via ${provider} (${messages.length} mensagens)`, 'AIRouter');
 
         if (provider === 'groq' && availability.groq) {
-            return groqConfig.chat(messages, { maxTokens: 1024 });
+            const tools = [
+                {
+                    type: "function",
+                    function: {
+                        name: "simulate_cash_flow",
+                        description: "Simula o impacto de novas receitas ou despesas no fluxo de caixa projetado de 30 dias. Use isto quando o usuário perguntar 'e se eu ganhar X' ou 'o que acontece se eu gastar Y'.",
+                        parameters: {
+                            type: "object",
+                            properties: {
+                                injectedTransactions: {
+                                    type: "array",
+                                    description: "Lista de transações simuladas a serem aplicadas na projeção.",
+                                    items: {
+                                        type: "object",
+                                        properties: {
+                                            date: { type: "string", format: "date", description: "Data da transação (YYYY-MM-DD)." },
+                                            amount: { type: "number", description: "Valor absoluto da transação." },
+                                            entryType: { type: "string", enum: ["Receita", "Despesa"], description: "Tipo da transação." },
+                                            description: { type: "string", description: "Descrição do gasto ou receita." }
+                                        },
+                                        required: ["date", "amount", "entryType", "description"]
+                                    }
+                                }
+                            },
+                            required: ["injectedTransactions"]
+                        }
+                    }
+                },
+                {
+                    type: "function",
+                    function: {
+                        name: "create_sprint_goal",
+                        description: "Cria uma meta financeira de 'Sprint' para renda extra ou economia rápida focada em sair do vermelho.",
+                        parameters: {
+                            type: "object",
+                            properties: {
+                                amount: { type: "number", description: "Valor alvo da meta financeira." },
+                                deadline: { type: "string", format: "date", description: "Data limite para bater a meta (YYYY-MM-DD)." },
+                                description: { type: "string", description: "Plano de ação resumido e prático para alcançar a meta." }
+                            },
+                            required: ["amount", "deadline", "description"]
+                        }
+                    }
+                }
+            ];
+
+            const responseMsg = await groqConfig.chat(messages, { maxTokens: 1024, tools, tool_choice: "auto" });
+
+            // Tratar function calling
+            if (responseMsg.tool_calls && responseMsg.tool_calls.length > 0) {
+                const toolCall = responseMsg.tool_calls[0];
+                if (toolCall.function.name === 'simulate_cash_flow') {
+                    try {
+                        const args = JSON.parse(toolCall.function.arguments);
+                        const { cashFlowService } = await import('./cashFlowService');
+                        
+                        // Executar a simulação de fluxo de caixa
+                        const projection = await cashFlowService.generateProjection(
+                            userId, 
+                            dashboardId, 
+                            new Date(), 
+                            30, 
+                            args.injectedTransactions
+                        );
+                        
+                        // Adicionar a resposta da tool no histórico
+                        messages.push(responseMsg); // Adicionar o tool call na conversa
+                        messages.push({
+                            role: 'tool',
+                            tool_call_id: toolCall.id,
+                            name: toolCall.function.name,
+                            content: JSON.stringify(projection.summary)
+                        });
+                        
+                        // Chamar o Groq novamente com o resultado da simulação
+                        const followUpResponse = await groqConfig.chat(messages, { maxTokens: 1024 });
+                        return followUpResponse.content || '';
+                    } catch(err) {
+                        logger.error('Erro ao processar tool_call simulate_cash_flow', err, 'AIRouter');
+                    }
+                } else if (toolCall.function.name === 'create_sprint_goal') {
+                    try {
+                        const args = JSON.parse(toolCall.function.arguments);
+                        const { prisma } = await import('../database/conexao');
+                        
+                        // Criar meta no banco de dados
+                        const goal = await prisma.financialGoal.create({
+                            data: {
+                                name: "Sprint de Caixa: " + args.description.substring(0, 30),
+                                description: args.description,
+                                targetAmount: args.amount,
+                                deadline: new Date(args.deadline),
+                                status: 'ACTIVE',
+                                userId: userId,
+                                category: 'Sprint'
+                            }
+                        });
+
+                        messages.push(responseMsg);
+                        messages.push({
+                            role: 'tool',
+                            tool_call_id: toolCall.id,
+                            name: toolCall.function.name,
+                            content: JSON.stringify({ success: true, message: "Meta criada com sucesso!", goalId: goal.id })
+                        });
+
+                        const followUpResponse = await groqConfig.chat(messages, { maxTokens: 1024 });
+                        return followUpResponse.content || '';
+                    } catch(err) {
+                        logger.error('Erro ao processar tool_call create_sprint_goal', err, 'AIRouter');
+                    }
+                }
+            }
+
+            return responseMsg.content || '';
         }
 
         // Fallback para Gemini (sem suporte nativo a roles, concat tudo)
