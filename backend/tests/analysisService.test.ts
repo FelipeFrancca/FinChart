@@ -34,7 +34,7 @@ describe("Financial Analysis Service", () => {
 
             // Criar transações de teste
             const today = new Date();
-            const baseDate = new Date(today.getFullYear(), today.getMonth(), 15);
+            const baseDate = new Date(today.getFullYear(), today.getMonth(), 1);
 
             // 1. Receitas
             await prisma.transaction.createMany({
