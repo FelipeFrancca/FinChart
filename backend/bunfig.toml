@@ -1,0 +1,3 @@
+[test]
+# Timeout aumentado para 15s para permitir que o prisma.$connect() falhe com graça em vez do Bun cortar o hook abruptamente
+timeout = 15000

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { transactionService } from '../../services/api';
 import type { Transaction, TransactionFilters } from '../../types';
 import { allocationKeys } from './useBudgetAllocation';
+import { analysisKeys } from './useAnalysis';
 
 // Query keys factory for better cache management
 export const transactionKeys = {
@@ -248,4 +249,69 @@ export const useRefreshTransactions = () => {
             queryClient.refetchQueries({ queryKey: transactionKeys.allStats(), type: 'active' });
         },
     };
+};
+
+/**
+ * Hook (mutation) para alternar o estado isSuspended de uma transação.
+ * PATCH /api/transactions/:id/suspend
+ *
+ * Invalida as queries de transações e de projeção de fluxo de caixa.
+ */
+export const useToggleSuspendTransaction = (dashboardId: string) => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id }: { id: string }) =>
+            transactionService.toggleSuspend(id, dashboardId),
+        onMutate: async ({ id }) => {
+            await queryClient.cancelQueries({ queryKey: transactionKeys.all });
+
+            // Optimistically toggle isSuspended on the transaction in all lists
+            const previousData = queryClient.getQueriesData({ queryKey: transactionKeys.lists() });
+
+            queryClient.setQueriesData(
+                { queryKey: transactionKeys.lists() },
+                (oldData: Transaction[] | undefined) => {
+                    if (!oldData) return oldData;
+                    return oldData.map((t) =>
+                        t.id === id ? { ...t, isSuspended: !t.isSuspended } : t
+                    );
+                }
+            );
+
+            return { previousData };
+        },
+        onSuccess: (updatedTransaction) => {
+            // Ensure cache is updated with server response
+            queryClient.setQueriesData(
+                { queryKey: transactionKeys.lists() },
+                (oldData: Transaction[] | undefined) => {
+                    if (!oldData) return oldData;
+                    return oldData.map((t) =>
+                        t.id === updatedTransaction.id ? updatedTransaction : t
+                    );
+                }
+            );
+            // Invalidate stats
+            queryClient.invalidateQueries({ queryKey: transactionKeys.allStats() });
+            // Invalidate daily pacing (suspending a variable expense changes the daily quota)
+            queryClient.invalidateQueries({
+                queryKey: analysisKeys.dailyPacing(dashboardId),
+            });
+            // Invalidate cash flow projections (suspended state affects them)
+            queryClient.invalidateQueries({
+                queryKey: analysisKeys.allProjections(dashboardId),
+            });
+            // Invalidate allocation analysis
+            queryClient.invalidateQueries({ queryKey: allocationKeys.all });
+        },
+        onError: (_err, _vars, context) => {
+            // Revert on error
+            if (context?.previousData) {
+                context.previousData.forEach(([queryKey, data]) => {
+                    queryClient.setQueryData(queryKey, data);
+                });
+            }
+        },
+    });
 };

@@ -219,4 +219,25 @@ describe("Financial Analysis Service", () => {
         expect(insight).toBe("Análise gerada por IA mockada");
         expect(aiRouter.generateFinancialAnalysis).toHaveBeenCalled();
     });
+
+    it("should calculate daily pacing correctly", async () => {
+        if (skipTests) return;
+
+        const pacing = await financialAnalysisService.calculateDailyPacing(
+            testDashboard.id,
+            testUser.id
+        );
+
+        expect(pacing).toBeDefined();
+        // Baseado nas transações inseridas no beforeAll:
+        // Receitas = 5000
+        // Despesas Fixas (Aluguel) = 1500
+        // Orçamento Livre = 3500
+        // Despesas Variáveis (Supermercado, Restaurante, Notebook) = 800 + 200 + 8000 = 9000
+        // Como 9000 > 3500, o saldo diário é negativo -> isOverBudget = true -> dailyPacing = 0
+        expect(pacing.budgetLimit).toBe(3500);
+        expect(pacing.currentSpent).toBe(9000);
+        expect(pacing.isOverBudget).toBe(true);
+        expect(pacing.dailyPacing).toBe(0);
+    });
 });

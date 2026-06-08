@@ -55,10 +55,13 @@ import {
   Close,
   AccountBalance as AccountBalanceIcon,
   CreditCard as CreditCardIcon,
+  PauseCircleOutline,
+  PlayCircleOutline,
 } from '@mui/icons-material';
 import { useParams } from 'react-router-dom';
 import { useResponsive } from '../hooks/useResponsive';
 import { useAccounts } from '../hooks/api/useAccounts';
+import { useToggleSuspendTransaction } from '../hooks/api/useTransactions';
 import LoadingSkeleton from './LoadingSkeleton';
 import TransactionItemsEditor from './TransactionItemsEditor';
 import type { Transaction, Account } from '../types';
@@ -107,6 +110,7 @@ export default function TransactionsTable({
   const { isMobile, isTablet } = useResponsive();
   const { dashboardId } = useParams<{ dashboardId: string }>();
   const { data: accounts = [] } = useAccounts(dashboardId || '');
+  const toggleSuspendMutation = useToggleSuspendTransaction(dashboardId || '');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [openRows, setOpenRows] = useState<Record<string, boolean>>({});
@@ -722,6 +726,12 @@ export default function TransactionsTable({
                     '&:hover': {
                       borderColor: theme.palette.primary.main,
                     },
+                    ...(transaction.isSuspended && {
+                      opacity: 0.5,
+                      '& .MuiTypography-root': {
+                        textDecoration: 'line-through',
+                      },
+                    }),
                   }}
                 >
                   <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
@@ -748,9 +758,26 @@ export default function TransactionsTable({
                           >
                             {getDisplayContent(transaction)}
                           </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {formatDate(transaction.date)}
-                          </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Typography variant="caption" color="text.secondary">
+                              {formatDate(transaction.date)}
+                            </Typography>
+                            {transaction.isSuspended && (
+                              <Chip
+                                label="❄️ Congelado"
+                                size="small"
+                                sx={{
+                                  height: 18,
+                                  fontSize: '0.65rem',
+                                  fontWeight: 600,
+                                  bgcolor: alpha(theme.palette.info.main, 0.12),
+                                  color: theme.palette.info.main,
+                                  borderRadius: 1,
+                                  '& .MuiChip-label': { px: 0.75 },
+                                }}
+                              />
+                            )}
+                          </Box>
                         </Box>
                       </Box>
                       <Tooltip title={transaction.entryType === 'Receita' ? 'Entrada de dinheiro' : 'Saída de dinheiro'} arrow>
@@ -897,6 +924,16 @@ export default function TransactionsTable({
                   >
                     {canEdit && (
                       <>
+                        <Tooltip title={transaction.isSuspended ? 'Reativar transação' : 'Suspender transação'} arrow>
+                          <IconButton
+                            size="small"
+                            onClick={() => toggleSuspendMutation.mutate({ id: transaction.id })}
+                            color={transaction.isSuspended ? 'success' : 'warning'}
+                            disabled={toggleSuspendMutation.isPending}
+                          >
+                            {transaction.isSuspended ? <PlayCircleOutline fontSize="small" /> : <PauseCircleOutline fontSize="small" />}
+                          </IconButton>
+                        </Tooltip>
                         {onThirdPartyUpdate && (
                           <Tooltip title={transaction.isThirdParty ? 'Editar terceiro' : 'Marcar como terceiro'} arrow>
                             <IconButton
@@ -1154,6 +1191,12 @@ export default function TransactionsTable({
                           : openRows[transaction.id]
                             ? alpha(theme.palette.action.hover, 0.5)
                             : 'inherit',
+                        ...(transaction.isSuspended && {
+                          opacity: 0.5,
+                          '& .MuiTypography-root, & .MuiChip-label': {
+                            textDecoration: 'line-through',
+                          },
+                        }),
                       }}
                       onClick={() => toggleRow(transaction.id)}
                     >
@@ -1268,6 +1311,21 @@ export default function TransactionsTable({
                               />
                             </Tooltip>
                           )}
+                          {transaction.isSuspended && (
+                            <Chip
+                              label="❄️ Congelado"
+                              size="small"
+                              sx={{
+                                height: 20,
+                                fontSize: '0.7rem',
+                                fontWeight: 600,
+                                bgcolor: alpha(theme.palette.info.main, 0.12),
+                                color: theme.palette.info.main,
+                                borderRadius: 1,
+                                '& .MuiChip-label': { px: 0.75 },
+                              }}
+                            />
+                          )}
                           {transaction.items && transaction.items.length > 0 && (
                             <Tooltip title={`${transaction.items.length} itens nesta transação`} arrow>
                               <Chip
@@ -1352,6 +1410,25 @@ export default function TransactionsTable({
                       <TableCell align="center">
                         {canEdit && (
                           <Stack direction="row" spacing={0.5} justifyContent="center">
+                            <Tooltip title={transaction.isSuspended ? 'Reativar transação' : 'Suspender transação'} arrow>
+                              <IconButton
+                                size="small"
+                                onClick={(e) => { e.stopPropagation(); toggleSuspendMutation.mutate({ id: transaction.id }); }}
+                                color={transaction.isSuspended ? 'success' : 'warning'}
+                                disabled={toggleSuspendMutation.isPending}
+                                sx={{
+                                  transition: 'all 0.2s ease',
+                                  '&:hover': {
+                                    bgcolor: transaction.isSuspended
+                                      ? alpha(theme.palette.success.main, 0.1)
+                                      : alpha(theme.palette.warning.main, 0.1),
+                                    transform: 'scale(1.1)',
+                                  },
+                                }}
+                              >
+                                {transaction.isSuspended ? <PlayCircleOutline fontSize="small" /> : <PauseCircleOutline fontSize="small" />}
+                              </IconButton>
+                            </Tooltip>
                             {onThirdPartyUpdate && (
                               <Tooltip title={transaction.isThirdParty ? `Terceiro: ${transaction.thirdPartyName || 'Sem nome'}` : "Marcar como terceiro"} arrow>
                                 <IconButton

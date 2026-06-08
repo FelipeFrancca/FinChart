@@ -20,6 +20,8 @@ import { prisma } from '../database/conexao';
 import { decryptSymmetric } from '../utils/crypto';
 import { parseBankEmail } from '../utils/bankEmailParsers';
 import type { ParsedTransaction } from '../utils/bankEmailParsers';
+import { financialAnalysisService } from './analysisServico';
+import { createAlert } from './alertasServico';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -92,6 +94,28 @@ async function persistTransaction(
         CONTEXT,
         { transactionId: transaction.id },
       );
+
+      // Calcular impacto na Cota Diária (Daily Pacing) e disparar alerta se estourar
+      try {
+        const pacing = await financialAnalysisService.calculateDailyPacing(dashboard.id, dashboard.ownerId);
+        
+        if (pacing.isOverBudget) {
+          await createAlert(dashboard.id, dashboard.ownerId, {
+            type: 'BUDGET_ALERT',
+            severity: 'WARNING',
+            title: 'Cota Diária Estourada',
+            message: `A compra de R$ ${parsed.valor.toFixed(2)} em ${parsed.estabelecimento} estourou sua cota diária livre. O saldo projetado para o fim do mês pode ter sido comprometido.`,
+            metadata: {
+              gasto: parsed.valor,
+              limite: 0,
+              categoria: parsed.estabelecimento
+            }
+          });
+          logger.info(`🚨 Alerta de cota diária estourada enviado para [userId=${dashboard.ownerId}] após parsing IMAP`, CONTEXT);
+        }
+      } catch (err) {
+        logger.error(`Erro ao processar alerta de cota diária [dashboardId=${dashboard.id}]`, err, CONTEXT);
+      }
     }
   } catch (error) {
     logger.error(

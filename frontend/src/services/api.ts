@@ -259,6 +259,15 @@ export const transactionService = {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   },
+
+  /**
+   * PATCH /api/transactions/:id/suspend
+   * Alterna o estado isSuspended de uma transação
+   */
+  toggleSuspend: async (id: string, dashboardId: string): Promise<Transaction> => {
+    const { data } = await api.patch(`/transactions/${id}/suspend`, { dashboardId });
+    return data.data;
+  },
 };
 
 export const dashboardService = {

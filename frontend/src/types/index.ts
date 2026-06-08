@@ -31,6 +31,7 @@ export interface Transaction {
   thirdPartyDescription?: string;
   items?: TransactionItem[];
   accountId?: string; // ID da conta/cartão vinculado
+  isSuspended?: boolean; // Se a transação está suspensa (ignorada na projeção de caixa)
   createdAt?: string;
   updatedAt?: string;
 }
